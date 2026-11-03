@@ -1,0 +1,28 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Local configurations & secrets
+config.json
+*.key
+*.pem
+*.log
+.adbkey
+.adbkey.pub
+
+# Environments
+.venv/
+env/
+venv/
+ENV/
+
+# IDE & OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Docker data
+data/
+logs/

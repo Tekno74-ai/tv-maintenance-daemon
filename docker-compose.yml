@@ -1,0 +1,15 @@
+services:
+  headless-tv-optimizer:
+    build: .
+    container_name: headless-tv-optimizer
+    restart: unless-stopped
+    # host networking is required for Wake-on-LAN UDP broadcast packets and low-latency ADB
+    network_mode: host
+    volumes:
+      - ./config.json:/app/config.json:ro
+      - ./data:/data
+      - ./logs:/app/logs
+      - /etc/localtime:/etc/localtime:ro
+    environment:
+      - TZ=Europe/Stockholm
+      - PYTHONUNBUFFERED=1
