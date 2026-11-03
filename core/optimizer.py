@@ -430,6 +430,7 @@ def get_telemetry(cfg: dict) -> dict:
         "available_ram_mb": avail_mb,
         "free_data_storage": free_data,
         "data_used_pct": data_pct,
+        "usb_mounted": usb_free != "N/A",
         "usb_free_storage": usb_free,
         "usb_used_pct": usb_pct
     }
@@ -453,15 +454,18 @@ def write_ha_status(cfg: dict, telemetry: dict, status_text: str):
             existing = {}
 
         existing["updated_at"] = telemetry["timestamp"]
+        usb_info = f" | USB Free: {telemetry['usb_free_storage']}" if telemetry.get("usb_mounted") else ""
+        alert_info = f" | Alert: {telemetry['usb_alert']}" if telemetry.get("usb_alert") else ""
         existing["headless_tv_optimizer"] = {
             "name": "TV Optimizer & Health",
             "status": status_text,
             "last_run": telemetry["timestamp"],
             "details": (
                 f"Available RAM: {telemetry['available_ram_mb']} MB | "
-                f"Internal Free: {telemetry['free_data_storage']} | "
-                f"USB Free: {telemetry.get('usb_free_storage', 'N/A')} | "
+                f"Internal Free: {telemetry['free_data_storage']}"
+                f"{usb_info} | "
                 f"Fresh ANRs: {telemetry.get('recent_anrs', 0)}"
+                f"{alert_info}"
             ),
             "icon": "mdi:television-shimmer"
         }
@@ -507,12 +511,17 @@ def run_maintenance(cfg: dict, wake=False, live_mode=False):
         # 4. Cache & Memory trim
         trim_memory_and_caches(cfg, live_mode=live_mode)
 
-        # 5. Telemetry & USB >90% Emergency Cache Purge
+        # 5. Telemetry & Optional USB Storage Guard
         telemetry = get_telemetry(cfg)
-        if telemetry.get("usb_used_pct", 0) > 90:
+        usb_alert = ""
+        if not telemetry["usb_mounted"] and cfg.get("expect_usb_storage", False):
+            usb_alert = "Expected USB storage (/mnt/expand) missing!"
+            logger.error(f"[ALERT] {usb_alert}")
+        elif telemetry["usb_mounted"] and telemetry.get("usb_used_pct", 0) > 90:
             logger.warning(f"External USB storage critically full ({telemetry['usb_used_pct']}%). Purging external app caches...")
             run_adb(cfg, ["shell", "rm -rf /sdcard/Android/data/*/cache/* 2>/dev/null"])
             telemetry = get_telemetry(cfg)
+            usb_alert = "USB >90% full (Emergency cache purge executed)"
 
         # 6. Opt-in Cold-Start Benchmarking & Weekly Reboot (Unattended only)
         if not live_mode:
@@ -524,10 +533,12 @@ def run_maintenance(cfg: dict, wake=False, live_mode=False):
                 run_adb(cfg, ["shell", "reboot"])
 
         telemetry["recent_anrs"] = recent_anrs
-        status_label = "Warning" if recent_anrs > 0 else "Success"
+        telemetry["usb_alert"] = usb_alert
+        status_label = "Warning" if (recent_anrs > 0 or usb_alert) else "Success"
+        usb_log_str = f" | USB Free: {telemetry['usb_free_storage']}" if telemetry["usb_mounted"] else ""
         logger.info(
             f"Maintenance complete. Available RAM: {telemetry['available_ram_mb']} MB | "
-            f"Internal Free: {telemetry['free_data_storage']} | USB Free: {telemetry['usb_free_storage']}"
+            f"Internal Free: {telemetry['free_data_storage']}{usb_log_str}"
         )
         write_ha_status(cfg, telemetry, status_label)
 

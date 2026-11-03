@@ -10,6 +10,7 @@
   "desired_private_dns": "off",
   "live_playback_wait_minutes": 5,
   "anr_max_age_hours": 24,
+  "expect_usb_storage": false,
   "measure_cold_starts_unattended": false,
   "weekly_reboot": false,
   "ha_status_output_path": "/data/system_jobs_status.json",
