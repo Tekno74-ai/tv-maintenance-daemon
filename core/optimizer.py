@@ -169,6 +169,70 @@ def is_protected_launcher(pkg: str, cfg: dict) -> bool:
     return any(k in pkg.lower() for k in ["launcher", "projengmenu", "tvhome", "flauncher"])
 
 
+def get_foreground_app(cfg: dict) -> str:
+    """Identifies the package name of the app currently in the foreground."""
+    out = run_adb(cfg, ["shell", "dumpsys", "window"], timeout=5)
+    for line in out.splitlines():
+        if "mCurrentFocus" in line or "mFocusedApp" in line:
+            m = re.search(r"([a-zA-Z0-9_\.]+)/", line)
+            if m:
+                return m.group(1)
+    act = run_adb(cfg, ["shell", "dumpsys", "activity", "activities"], timeout=5)
+    for line in act.splitlines():
+        if "mResumedActivity" in line:
+            m = re.search(r"([a-zA-Z0-9_\.]+)/", line)
+            if m:
+                return m.group(1)
+    return ""
+
+
+def check_anr_and_health(cfg: dict) -> tuple[int, int]:
+    """
+    Analyzes /data/anr crash files (distinguishing fresh ANRs <anr_max_age_hours from stale ones)
+    and scans logcat for skipped UI frames and major page faults.
+    """
+    logger.info("Inspecting ANR crash traces and system logcat health...")
+    anr_stat = run_adb(cfg, ["shell", "stat -c '%n %Y' /data/anr/* 2>/dev/null"])
+    now_epoch = int(time.time())
+    max_age_sec = cfg.get("anr_max_age_hours", 24) * 3600
+
+    recent_anr_count = 0
+    old_anr_count = 0
+
+    if anr_stat and "No such file" not in anr_stat:
+        for line in anr_stat.splitlines():
+            parts = line.strip().split()
+            if len(parts) >= 2 and parts[-1].isdigit():
+                filepath = parts[0]
+                mtime = int(parts[-1])
+                age_hours = (now_epoch - mtime) / 3600.0
+                if (now_epoch - mtime) <= max_age_sec:
+                    recent_anr_count += 1
+                    logger.warning(f"  -> Fresh ANR detected: {filepath} ({age_hours:.1f}h old)")
+                else:
+                    old_anr_count += 1
+                    del_out = run_adb(cfg, ["shell", f"rm -f {filepath} 2>/dev/null && echo DELETED"])
+                    if "DELETED" in del_out:
+                        logger.info(f"  -> Removed stale ANR file: {filepath}")
+
+    if recent_anr_count == 0 and old_anr_count == 0:
+        logger.info("  -> 0 ANR files in /data/anr.")
+    elif recent_anr_count == 0 and old_anr_count > 0:
+        logger.info(f"  -> 0 fresh ANRs (ignored {old_anr_count} historical ANR traces >{cfg.get('anr_max_age_hours', 24)}h old).")
+
+    logcat_out = run_adb(cfg, ["shell", "logcat", "-d", "-t", "1000"], timeout=15)
+    skipped_frames = 0
+    page_faults = 0
+    for line in logcat_out.splitlines():
+        if "Skipped " in line and " frames!" in line:
+            skipped_frames += 1
+        if "major page fault" in line.lower():
+            page_faults += 1
+
+    logger.info(f"  -> Logcat (last 1000 lines): {skipped_frames} UI frame-drop warnings, {page_faults} major page faults.")
+    return recent_anr_count, skipped_frames
+
+
 def apply_system_policies(cfg: dict):
     """Enforces clock sanity, bloatware shield, launcher, headless power settings, and UI animation scales."""
     logger.info("Applying system policies, bloatware shield, and performance settings...")
@@ -245,6 +309,8 @@ def optimize_aot(cfg: dict):
         return
 
     logger.info("Checking storage placement and AOT compilation status for core apps...")
+    run_adb(cfg, ["shell", "pm", "set-install-location", "0"])
+
     for app in core_apps:
         pkg = app["pkg"]
         name = app.get("name", pkg)
@@ -269,9 +335,46 @@ def optimize_aot(cfg: dict):
             logger.info(f"     Result: {res}")
 
 
+def measure_cold_starts(cfg: dict) -> dict:
+    """
+    Opt-in cold-start benchmark for core apps using 'am start -W -S'.
+    Note: Launching activities via ActivityManager wakes the display on Android TV,
+    so this is disabled by default during unattended night runs.
+    """
+    logger.info("Measuring cold-start latency (TotalTime ms) for core apps...")
+    results = {}
+    for app in cfg.get("core_apps", []):
+        name = app.get("name", app["pkg"])
+        pkg = app["pkg"]
+        act = app.get("activity")
+        if not act:
+            continue
+
+        out = run_adb(cfg, ["shell", "am", "start", "-W", "-S", "-n", act], timeout=25)
+        total_time = None
+        for line in out.splitlines():
+            if line.startswith("TotalTime:"):
+                try:
+                    total_time = int(line.split(":")[1].strip())
+                except ValueError:
+                    pass
+        if total_time is not None:
+            results[name] = total_time
+            logger.info(f"  -> {name:12s}: {total_time} ms")
+        time.sleep(2)
+        if not is_protected_launcher(pkg, cfg):
+            run_adb(cfg, ["shell", "am", "force-stop", pkg])
+
+    default_launcher = cfg.get("default_launcher")
+    if default_launcher:
+        run_adb(cfg, ["shell", "am", "start", "-n", default_launcher])
+    return results
+
+
 def trim_memory_and_caches(cfg: dict, live_mode=False):
-    """Trims app cache buffers and invokes storage fstrim."""
-    logger.info(f"Running cache trimming and filesystem fstrim (live_mode={live_mode})...")
+    """Trims app cache buffers and invokes storage fstrim, protecting the active foreground app."""
+    fg_pkg = get_foreground_app(cfg) if live_mode else ""
+    logger.info(f"Running cache trimming and filesystem fstrim (live_mode={live_mode}, foreground={fg_pkg or 'none'})...")
     run_adb(cfg, ["shell", "pm", "trim-caches", "4096M"], timeout=15)
     run_adb(cfg, ["shell", "sm", "fstrim"], timeout=30)
 
@@ -280,32 +383,55 @@ def trim_memory_and_caches(cfg: dict, live_mode=False):
         core_apps = cfg.get("core_apps", [])
         for app in core_apps:
             pkg = app["pkg"]
-            if is_protected_launcher(pkg, cfg):
+            if is_protected_launcher(pkg, cfg) or (fg_pkg and pkg == fg_pkg):
                 continue
             run_adb(cfg, ["shell", "am", "force-stop", pkg], timeout=5)
         logger.info("Selective background app force-stop completed.")
 
 
 def get_telemetry(cfg: dict) -> dict:
-    """Reads available RAM, storage metrics, and ANRs."""
+    """Reads available RAM, internal /data storage, and adoptable USB (/mnt/expand) storage metrics."""
     meminfo = run_adb(cfg, ["shell", "cat", "/proc/meminfo"], timeout=5)
     avail_mb = 0
     m = re.search(r"MemAvailable:\s+(\d+)\s+kB", meminfo)
     if m:
         avail_mb = int(int(m.group(1)) / 1024)
+    else:
+        free_out = run_adb(cfg, ["shell", "free", "-m"], timeout=5)
+        for line in free_out.splitlines():
+            if line.lower().startswith("mem:"):
+                parts = line.split()
+                if len(parts) >= 7 and parts[6].isdigit():
+                    avail_mb = int(parts[6])
+                elif len(parts) >= 4 and parts[3].isdigit():
+                    avail_mb = int(parts[3])
 
-    df = run_adb(cfg, ["shell", "df", "-h", "/data"], timeout=5)
+    df = run_adb(cfg, ["shell", "df", "-h"], timeout=5)
     free_data = "Unknown"
+    data_pct = 0
+    usb_free = "N/A"
+    usb_pct = 0
+
     for line in df.splitlines():
-        if "/data" in line:
-            parts = line.split()
-            if len(parts) >= 4:
-                free_data = parts[3]
+        parts = line.split()
+        if len(parts) >= 5 and "/data" in line and "/mnt/expand" not in line:
+            free_data = parts[3]
+            pct_str = parts[4].replace("%", "")
+            if pct_str.isdigit():
+                data_pct = int(pct_str)
+        elif len(parts) >= 5 and "/mnt/expand" in line:
+            usb_free = parts[3]
+            pct_str = parts[4].replace("%", "")
+            if pct_str.isdigit():
+                usb_pct = int(pct_str)
 
     return {
         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "available_ram_mb": avail_mb,
-        "free_data_storage": free_data
+        "free_data_storage": free_data,
+        "data_used_pct": data_pct,
+        "usb_free_storage": usb_free,
+        "usb_used_pct": usb_pct
     }
 
 
@@ -331,7 +457,12 @@ def write_ha_status(cfg: dict, telemetry: dict, status_text: str):
             "name": "TV Optimizer & Health",
             "status": status_text,
             "last_run": telemetry["timestamp"],
-            "details": f"Available RAM: {telemetry['available_ram_mb']} MB | Storage Free: {telemetry['free_data_storage']}",
+            "details": (
+                f"Available RAM: {telemetry['available_ram_mb']} MB | "
+                f"Internal Free: {telemetry['free_data_storage']} | "
+                f"USB Free: {telemetry.get('usb_free_storage', 'N/A')} | "
+                f"Fresh ANRs: {telemetry.get('recent_anrs', 0)}"
+            ),
             "icon": "mdi:television-shimmer"
         }
         tmp_path = out_path + ".tmp"
@@ -363,20 +494,42 @@ def run_maintenance(cfg: dict, wake=False, live_mode=False):
             logger.warning("Viewer is currently watching TV. Aborting full night maintenance to prevent interruption.")
             return
 
-        # 1. Policies & Bloatware Shield
+        # 1. ANR & System Health Analysis
+        recent_anrs, _ = check_anr_and_health(cfg)
+
+        # 2. Policies & Bloatware Shield
         apply_system_policies(cfg)
 
-        # 2. AOT Compilations (Skipped in live mode to preserve CPU)
+        # 3. AOT Compilations (Skipped in live mode to preserve CPU)
         if not live_mode:
             optimize_aot(cfg)
 
-        # 3. Cache & Memory trim
+        # 4. Cache & Memory trim
         trim_memory_and_caches(cfg, live_mode=live_mode)
 
-        # 4. Telemetry
+        # 5. Telemetry & USB >90% Emergency Cache Purge
         telemetry = get_telemetry(cfg)
-        logger.info(f"Maintenance complete. Available RAM: {telemetry['available_ram_mb']} MB | Free Storage: {telemetry['free_data_storage']}")
-        write_ha_status(cfg, telemetry, "Success")
+        if telemetry.get("usb_used_pct", 0) > 90:
+            logger.warning(f"External USB storage critically full ({telemetry['usb_used_pct']}%). Purging external app caches...")
+            run_adb(cfg, ["shell", "rm -rf /sdcard/Android/data/*/cache/* 2>/dev/null"])
+            telemetry = get_telemetry(cfg)
+
+        # 6. Opt-in Cold-Start Benchmarking & Weekly Reboot (Unattended only)
+        if not live_mode:
+            if cfg.get("measure_cold_starts_unattended", False):
+                measure_cold_starts(cfg)
+
+            if datetime.now().weekday() == 0 and cfg.get("weekly_reboot", False):
+                logger.info("Monday & weekly_reboot=True: Rebooting TV cleanly...")
+                run_adb(cfg, ["shell", "reboot"])
+
+        telemetry["recent_anrs"] = recent_anrs
+        status_label = "Warning" if recent_anrs > 0 else "Success"
+        logger.info(
+            f"Maintenance complete. Available RAM: {telemetry['available_ram_mb']} MB | "
+            f"Internal Free: {telemetry['free_data_storage']} | USB Free: {telemetry['usb_free_storage']}"
+        )
+        write_ha_status(cfg, telemetry, status_label)
 
     finally:
         # Failsafe Standby Enforcer: If screen was accidentally woken during unattended run, turn it off

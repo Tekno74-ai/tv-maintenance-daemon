@@ -5,6 +5,7 @@ __pycache__/
 
 # Local configurations & secrets
 config.json
+tv_standby_metrics.json
 *.key
 *.pem
 *.log

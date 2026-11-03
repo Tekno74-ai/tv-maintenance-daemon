@@ -5,6 +5,7 @@ Headless TV Daemon
 """
 
 import argparse
+import json
 import logging
 import os
 import re
@@ -12,7 +13,7 @@ import socket
 import subprocess
 import sys
 import time
-from datetime import date
+from datetime import date, datetime
 from logging.handlers import RotatingFileHandler
 
 CORE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -20,10 +21,11 @@ BASE_DIR = os.path.dirname(CORE_DIR)
 if CORE_DIR not in sys.path:
     sys.path.insert(0, CORE_DIR)
 
-from optimizer import load_config, get_screen_state, connect_adb, is_protected_launcher
+from optimizer import load_config, get_screen_state, connect_adb, is_protected_launcher, get_foreground_app
 from power_recovery import heal_tv_if_needed
 
 LOG_FILE = os.path.join(BASE_DIR, "tv_daemon.log")
+METRICS_FILE = os.path.join(BASE_DIR, "tv_standby_metrics.json")
 
 logger = logging.getLogger("tv_daemon")
 logger.setLevel(logging.INFO)
@@ -50,6 +52,33 @@ def is_port_open(host, port, timeout=1.5) -> bool:
         s.close()
 
 
+def load_metrics() -> dict:
+    if os.path.exists(METRICS_FILE):
+        try:
+            with open(METRICS_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {
+        "last_screen_off": None,
+        "last_deep_sleep": None,
+        "measured_x_seconds": 0.0,
+        "measured_x_human": "< 15 s (Direct Deep Sleep)",
+        "last_live_maintenance": None,
+        "history": []
+    }
+
+
+def save_metrics(data: dict):
+    try:
+        tmp_path = METRICS_FILE + ".tmp"
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+        os.replace(tmp_path, METRICS_FILE)
+    except Exception as e:
+        logger.warning(f"Failed to save standby metrics: {e}")
+
+
 def run_optimizer_live(config_path):
     opt_py = os.path.join(CORE_DIR, "optimizer.py")
     cmd = [sys.executable, opt_py, "--live"]
@@ -61,23 +90,9 @@ def run_optimizer_live(config_path):
         logger.error(f"Failed to execute live trimming: {e}")
 
 
-def get_current_app(cfg):
-    target = f"{cfg['tv_ip']}:{cfg['tv_port']}"
-    cmd = [cfg["adb_bin"], "-s", target, "shell", "dumpsys", "window"]
-    try:
-        res = subprocess.run(cmd, capture_output=True, text=True, errors="replace", timeout=5)
-        for line in res.stdout.splitlines():
-            if "mCurrentFocus" in line or "mFocusedApp" in line:
-                m = re.search(r"([a-zA-Z0-9_\.]+)/", line)
-                if m:
-                    return m.group(1)
-    except Exception:
-        pass
-    return "unknown"
-
-
 def daemon_loop(config_path):
     cfg = load_config(config_path)
+    metrics = load_metrics()
 
     logger.info(f"Starting Headless TV Daemon for {cfg['tv_ip']}:{cfg['tv_port']}...")
 
@@ -92,6 +107,7 @@ def daemon_loop(config_path):
     while True:
         try:
             online = is_port_open(cfg["tv_ip"], cfg["tv_port"])
+            now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
             if online:
                 if not was_online:
@@ -109,7 +125,7 @@ def daemon_loop(config_path):
                         was_awake_session = True
                         screen_off_time = None
 
-                    active_pkg = get_current_app(cfg)
+                    active_pkg = get_foreground_app(cfg) or "unknown"
                     core_pkgs = {app["pkg"] for app in cfg.get("core_apps", [])}
 
                     if active_pkg in core_pkgs and not is_protected_launcher(active_pkg, cfg):
@@ -126,6 +142,8 @@ def daemon_loop(config_path):
                                 logger.info(f"Continuous streaming in {active_pkg} >= {wait_min}m. Triggering live-trimming...")
                                 run_optimizer_live(config_path)
                                 last_live_trim_date = today
+                                metrics["last_live_maintenance"] = now_str
+                                save_metrics(metrics)
                                 logger.info("Live-trimming completed safely in background.")
                     else:
                         current_stream_app = None
@@ -139,6 +157,8 @@ def daemon_loop(config_path):
                         was_screen_on = False
                         screen_off_time = time.time()
                         current_stream_app = None
+                        metrics["last_screen_off"] = now_str
+                        save_metrics(metrics)
 
                     time.sleep(5)
             else:
@@ -146,10 +166,29 @@ def daemon_loop(config_path):
                 if was_online:
                     if was_awake_session:
                         if screen_off_time:
-                            standby_sec = time.time() - screen_off_time
-                            logger.info(f"TV entered deep sleep! Measured Light Standby duration (X): {standby_sec:.1f}s")
+                            standby_sec = round(time.time() - screen_off_time, 1)
+                            mins = int(standby_sec // 60)
+                            secs = int(standby_sec % 60)
+                            x_human = f"{mins}m {secs}s"
+                            logger.info(f"TV entered deep sleep! Measured Light Standby duration (X): {x_human} ({standby_sec:.1f}s)")
                         else:
-                            logger.info("TV turned off and entered deep sleep directly (<10s).")
+                            standby_sec = 0.0
+                            x_human = "< 10s (Direct Deep Sleep)"
+                            metrics["last_screen_off"] = now_str
+                            logger.info(f"TV turned off and entered deep sleep directly ({x_human}).")
+
+                        metrics["last_deep_sleep"] = now_str
+                        metrics["measured_x_seconds"] = standby_sec
+                        metrics["measured_x_human"] = x_human
+                        hist = metrics.get("history", [])
+                        hist.append({
+                            "date": now_str,
+                            "x_seconds": standby_sec,
+                            "x_human": x_human
+                        })
+                        metrics["history"] = hist[-10:]
+                        save_metrics(metrics)
+
                     was_online = False
                     was_screen_on = False
                     was_awake_session = False

@@ -10,16 +10,18 @@
   "desired_private_dns": "off",
   "live_playback_wait_minutes": 5,
   "anr_max_age_hours": 24,
+  "measure_cold_starts_unattended": false,
+  "weekly_reboot": false,
   "ha_status_output_path": "/data/system_jobs_status.json",
   "default_launcher": "com.spocky.projengmenu/.ui.home.MainActivity",
   "core_apps": [
-    { "name": "Netflix",         "pkg": "com.netflix.ninja" },
-    { "name": "YouTube",         "pkg": "com.google.android.youtube.tv" },
-    { "name": "Apple TV",        "pkg": "com.apple.atve.androidtv.appletv" },
+    { "name": "Netflix",         "pkg": "com.netflix.ninja",                 "activity": "com.netflix.ninja/.MainActivity" },
+    { "name": "YouTube",         "pkg": "com.google.android.youtube.tv",     "activity": "com.google.android.youtube.tv/com.google.android.apps.youtube.tv.activity.ShellActivity" },
+    { "name": "Apple TV",        "pkg": "com.apple.atve.androidtv.appletv",  "activity": "com.apple.atve.androidtv.appletv/.MainActivity" },
     { "name": "Disney+",         "pkg": "com.disney.disneyplus" },
-    { "name": "HBO Max",         "pkg": "com.wbd.stream" },
+    { "name": "HBO Max",         "pkg": "com.wbd.stream",                    "activity": "com.wbd.stream/com.wbd.beam.BeamActivity" },
     { "name": "Prime Video",     "pkg": "com.amazon.amazonvideo.livingroom" },
-    { "name": "Projectivy",      "pkg": "com.spocky.projengmenu" }
+    { "name": "Projectivy",      "pkg": "com.spocky.projengmenu",            "activity": "com.spocky.projengmenu/.ui.home.MainActivity" }
   ],
   "disabled_packages": [
     "org.droidtv.playtv",
