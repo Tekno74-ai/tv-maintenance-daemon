@@ -4,6 +4,8 @@ TV Maintenance Daemon Engine
 Autonomous background maintenance, AOT speed-compilation, and memory management for Android TV.
 """
 
+from __future__ import annotations
+
 import argparse
 import json
 import logging

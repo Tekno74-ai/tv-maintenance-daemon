@@ -4,6 +4,8 @@ TV Maintenance Daemon
 24/7 background monitor for smart TV power states, active streaming playback, and live-trimming.
 """
 
+from __future__ import annotations
+
 import argparse
 import json
 import logging

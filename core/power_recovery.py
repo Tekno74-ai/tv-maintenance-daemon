@@ -4,6 +4,8 @@ Headless TV Cold-Boot & Power Recovery
 Recovers smart TVs from hardware clock reset (lack of RTC battery) and prevents Private DNS deadlock.
 """
 
+from __future__ import annotations
+
 import argparse
 import logging
 import os
