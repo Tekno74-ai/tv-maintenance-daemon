@@ -1,7 +1,7 @@
 FROM python:3.11-slim-bookworm
 
 LABEL maintainer="Tekno74-ai"
-LABEL description="Headless Android TV 24/7 background optimizer and maintenance daemon"
+LABEL description="Android TV 24/7 background maintenance daemon and AOT speed compiler"
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     adb \

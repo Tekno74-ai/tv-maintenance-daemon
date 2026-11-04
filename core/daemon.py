@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Headless TV Daemon
+TV Maintenance Daemon
 24/7 background monitor for smart TV power states, active streaming playback, and live-trimming.
 """
 

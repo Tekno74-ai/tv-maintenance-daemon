@@ -1,7 +1,7 @@
 services:
-  headless-tv-optimizer:
+  tv-maintenance-daemon:
     build: .
-    container_name: headless-tv-optimizer
+    container_name: tv-maintenance-daemon
     restart: unless-stopped
     # host networking is required for Wake-on-LAN UDP broadcast packets and low-latency ADB
     network_mode: host

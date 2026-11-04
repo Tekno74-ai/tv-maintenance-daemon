@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Headless TV Optimizer Engine
-Autonomous maintenance, AOT speed-compilation, and memory management for Android TV.
+TV Maintenance Daemon Engine
+Autonomous background maintenance, AOT speed-compilation, and memory management for Android TV.
 """
 
 import argparse
@@ -24,7 +24,7 @@ except ImportError:
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEFAULT_CONFIG_PATH = os.path.join(BASE_DIR, "config.json")
-LOCK_FILE = os.path.join("/tmp" if os.name != "nt" else os.environ.get("TEMP", "C:\\Temp"), "headless_tv_optimizer.lock")
+LOCK_FILE = os.path.join("/tmp" if os.name != "nt" else os.environ.get("TEMP", "C:\\Temp"), "tv_maintenance_daemon.lock")
 LOG_FILE = os.path.join(BASE_DIR, "tv_optimizer.log")
 
 # Setup clean logger
@@ -303,12 +303,12 @@ def apply_system_policies(cfg: dict):
 
 
 def optimize_aot(cfg: dict):
-    """Ensures core apps reside on fast internal eMMC storage and compiles AOT speed profiles."""
+    """Ensures core apps are AOT speed-compiled (dex2oat) on fast internal eMMC."""
     core_apps = cfg.get("core_apps", [])
     if not core_apps:
         return
 
-    logger.info("Checking storage placement and AOT compilation status for core apps...")
+    logger.info("Checking AOT compilation status for core apps...")
     run_adb(cfg, ["shell", "pm", "set-install-location", "0"])
 
     for app in core_apps:
@@ -317,11 +317,6 @@ def optimize_aot(cfg: dict):
         path_out = run_adb(cfg, ["shell", "pm", "path", pkg])
         if not path_out:
             continue
-
-        # Migrate back to internal eMMC if placed on slower USB adoptable storage
-        if "/mnt/expand/" in path_out:
-            logger.info(f"  -> {name}: Located on external USB storage. Moving to internal eMMC...")
-            run_adb(cfg, ["shell", "pm", "move-package", pkg, "internal"], timeout=120)
 
         dump = run_adb(cfg, ["shell", "dumpsys", "package", pkg])
         if not dump or "Unable to find package" in dump:
@@ -390,7 +385,7 @@ def trim_memory_and_caches(cfg: dict, live_mode=False):
 
 
 def get_telemetry(cfg: dict) -> dict:
-    """Reads available RAM, internal /data storage, and adoptable USB (/mnt/expand) storage metrics."""
+    """Reads available RAM and internal storage metrics."""
     meminfo = run_adb(cfg, ["shell", "cat", "/proc/meminfo"], timeout=5)
     avail_mb = 0
     m = re.search(r"MemAvailable:\s+(\d+)\s+kB", meminfo)
@@ -406,33 +401,24 @@ def get_telemetry(cfg: dict) -> dict:
                 elif len(parts) >= 4 and parts[3].isdigit():
                     avail_mb = int(parts[3])
 
-    df = run_adb(cfg, ["shell", "df", "-h"], timeout=5)
+    df = run_adb(cfg, ["shell", "df", "-h", "/data"], timeout=5)
     free_data = "Unknown"
     data_pct = 0
-    usb_free = "N/A"
-    usb_pct = 0
-
     for line in df.splitlines():
-        parts = line.split()
-        if len(parts) >= 5 and "/data" in line and "/mnt/expand" not in line:
-            free_data = parts[3]
-            pct_str = parts[4].replace("%", "")
-            if pct_str.isdigit():
-                data_pct = int(pct_str)
-        elif len(parts) >= 5 and "/mnt/expand" in line:
-            usb_free = parts[3]
-            pct_str = parts[4].replace("%", "")
-            if pct_str.isdigit():
-                usb_pct = int(pct_str)
+        if "/data" in line:
+            parts = line.split()
+            if len(parts) >= 4:
+                free_data = parts[3]
+            if len(parts) >= 5 and "%" in parts[4]:
+                pct_str = parts[4].replace("%", "")
+                if pct_str.isdigit():
+                    data_pct = int(pct_str)
 
     return {
         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "available_ram_mb": avail_mb,
         "free_data_storage": free_data,
-        "data_used_pct": data_pct,
-        "usb_mounted": usb_free != "N/A",
-        "usb_free_storage": usb_free,
-        "usb_used_pct": usb_pct
+        "data_used_pct": data_pct
     }
 
 
@@ -454,18 +440,14 @@ def write_ha_status(cfg: dict, telemetry: dict, status_text: str):
             existing = {}
 
         existing["updated_at"] = telemetry["timestamp"]
-        usb_info = f" | USB Free: {telemetry['usb_free_storage']}" if telemetry.get("usb_mounted") else ""
-        alert_info = f" | Alert: {telemetry['usb_alert']}" if telemetry.get("usb_alert") else ""
-        existing["headless_tv_optimizer"] = {
-            "name": "TV Optimizer & Health",
+        existing["tv_maintenance_daemon"] = {
+            "name": "TV Maintenance Daemon",
             "status": status_text,
             "last_run": telemetry["timestamp"],
             "details": (
                 f"Available RAM: {telemetry['available_ram_mb']} MB | "
-                f"Internal Free: {telemetry['free_data_storage']}"
-                f"{usb_info} | "
+                f"Internal Storage Free: {telemetry['free_data_storage']} | "
                 f"Fresh ANRs: {telemetry.get('recent_anrs', 0)}"
-                f"{alert_info}"
             ),
             "icon": "mdi:television-shimmer"
         }
@@ -511,17 +493,8 @@ def run_maintenance(cfg: dict, wake=False, live_mode=False):
         # 4. Cache & Memory trim
         trim_memory_and_caches(cfg, live_mode=live_mode)
 
-        # 5. Telemetry & Optional USB Storage Guard
+        # 5. Telemetry
         telemetry = get_telemetry(cfg)
-        usb_alert = ""
-        if not telemetry["usb_mounted"] and cfg.get("expect_usb_storage", False):
-            usb_alert = "Expected USB storage (/mnt/expand) missing!"
-            logger.error(f"[ALERT] {usb_alert}")
-        elif telemetry["usb_mounted"] and telemetry.get("usb_used_pct", 0) > 90:
-            logger.warning(f"External USB storage critically full ({telemetry['usb_used_pct']}%). Purging external app caches...")
-            run_adb(cfg, ["shell", "rm -rf /sdcard/Android/data/*/cache/* 2>/dev/null"])
-            telemetry = get_telemetry(cfg)
-            usb_alert = "USB >90% full (Emergency cache purge executed)"
 
         # 6. Opt-in Cold-Start Benchmarking & Weekly Reboot (Unattended only)
         if not live_mode:
@@ -533,12 +506,10 @@ def run_maintenance(cfg: dict, wake=False, live_mode=False):
                 run_adb(cfg, ["shell", "reboot"])
 
         telemetry["recent_anrs"] = recent_anrs
-        telemetry["usb_alert"] = usb_alert
-        status_label = "Warning" if (recent_anrs > 0 or usb_alert) else "Success"
-        usb_log_str = f" | USB Free: {telemetry['usb_free_storage']}" if telemetry["usb_mounted"] else ""
+        status_label = "Warning" if recent_anrs > 0 else "Success"
         logger.info(
             f"Maintenance complete. Available RAM: {telemetry['available_ram_mb']} MB | "
-            f"Internal Free: {telemetry['free_data_storage']}{usb_log_str}"
+            f"Internal Free: {telemetry['free_data_storage']} | Fresh ANRs: {recent_anrs}"
         )
         write_ha_status(cfg, telemetry, status_label)
 

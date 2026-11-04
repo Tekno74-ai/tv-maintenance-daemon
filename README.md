@@ -1,23 +1,24 @@
-# Headless TV Optimizer 📺⚡
+# TV Maintenance Daemon 📺⚡
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python: 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/)
 [![Docker](https://img.shields.io/badge/docker-ready-green.svg)](Dockerfile)
 [![Platform](https://img.shields.io/badge/platform-Android%20TV%20%7C%20Google%20TV-brightgreen.svg)]()
 
-> Autonomous 24/7 background maintenance, headless night-optimization, and live-trimming daemon for Android TV and Google TV devices.
+> Autonomous 24/7 background maintenance daemon, persistent AOT speed-compilation, and live-trimming companion for Android TV and Google TV devices.
 
 ---
 
-## 🌟 Why Headless TV Optimizer?
+## 🌟 Why TV Maintenance Daemon?
 
 Most smart TVs (especially those powered by budget MediaTek or Realtek SoCs with 1.5–2 GB RAM) suffer from progressive performance degradation over time:
 * Memory leaks and bloated app caches cause playback buffering and sluggish navigation.
-* JIT-compiled bytecode leads to 5–10 second cold-start delays when opening heavy streaming apps.
+* Standard Android JIT (Just-In-Time) compilation forces weak quad-core TV CPUs to compile code while apps are loading, leading to 10–25 second cold-start delays.
+* **The Google Play Update Trap:** Even if you manually compile apps via ADB, Google Play resets them back to unoptimized bytecode whenever an app auto-updates.
 * Manufacturer telemetries, content recommendation rows, and retail demo loops hog background CPU.
 * **The Night Maintenance Dilemma:** Traditional automated ADB scripts or Wake-on-LAN packets often wake the physical TV screen in the middle of the night, lighting up dark bedrooms and living rooms.
 
-**Headless TV Optimizer** solves all of this autonomously from a local home server, NAS (Synology, TrueNAS, Unraid), or Raspberry Pi.
+**TV Maintenance Daemon** solves all of this autonomously from a local home server, NAS (Synology, TrueNAS, Unraid), or Raspberry Pi.
 
 ---
 
@@ -90,8 +91,8 @@ Publishes atomic status updates including **True Available Memory** (`MemAvailab
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/Tekno74-ai/headless-tv-optimizer.git
-   cd headless-tv-optimizer
+   git clone https://github.com/Tekno74-ai/tv-maintenance-daemon.git
+   cd tv-maintenance-daemon
    ```
 2. Copy and customize configuration:
    ```bash
@@ -122,7 +123,7 @@ Publishes atomic status updates including **True Available Memory** (`MemAvailab
    *(Accept the "Always allow from this computer" prompt on the TV screen).*
 4. Set up crontab for headless nightly maintenance (e.g. at 04:30 AM):
    ```cron
-   30 4 * * * /usr/bin/python3 /path/to/headless-tv-optimizer/core/optimizer.py --wake >> /path/to/tv_cron.log 2>&1
+   30 4 * * * /usr/bin/python3 /path/to/tv-maintenance-daemon/core/optimizer.py --wake >> /path/to/tv_cron.log 2>&1
    ```
 5. Run the 24/7 playback and live-trimming daemon via systemd or supervisor:
    ```bash
