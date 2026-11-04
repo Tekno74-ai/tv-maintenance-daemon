@@ -25,7 +25,8 @@ except ImportError:
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEFAULT_CONFIG_PATH = os.path.join(BASE_DIR, "config.json")
 LOCK_FILE = os.path.join("/tmp" if os.name != "nt" else os.environ.get("TEMP", "C:\\Temp"), "tv_maintenance_daemon.lock")
-LOG_FILE = os.path.join(BASE_DIR, "tv_optimizer.log")
+LOG_DIR = os.path.join(BASE_DIR, "logs") if os.path.isdir(os.path.join(BASE_DIR, "logs")) else BASE_DIR
+LOG_FILE = os.path.join(LOG_DIR, "tv_optimizer.log")
 
 # Setup clean logger
 logger = logging.getLogger("tv_optimizer")
@@ -145,21 +146,27 @@ def connect_adb(cfg: dict, max_retries=3, retry_delay=1.5, resend_wol=False) -> 
 
 
 def get_screen_state(cfg: dict) -> dict:
-    """Returns wakefulness and physical display state."""
+    """Returns reachability, wakefulness, and physical display state."""
     dump = run_adb(cfg, ["shell", "dumpsys", "display"], timeout=5)
+    p_dump = run_adb(cfg, ["shell", "dumpsys", "power"], timeout=5)
+    if not dump and not p_dump:
+        return {"reachable": False, "screen_on": False, "wakefulness": "Unknown"}
+
     is_screen_on = False
     m = re.search(r"mState=(ON|OFF)", dump)
     if m:
-        is_screen_on = (m.group(1) == "ON")
+        is_screen_on = (m.group(1) == "ON") or ("mHoldingDisplaySuspendBlocker=true" in p_dump)
     else:
-        power = run_adb(cfg, ["shell", "dumpsys", "power"], timeout=5)
-        is_screen_on = "Display Power: state=ON" in power or "mInteractive=true" in power
+        is_screen_on = (
+            "Display Power: state=ON" in p_dump
+            or "mInteractive=true" in p_dump
+            or "mHoldingDisplaySuspendBlocker=true" in p_dump
+        )
 
-    p_dump = run_adb(cfg, ["shell", "dumpsys", "power"], timeout=5)
     wake_m = re.search(r"mWakefulness=(Awake|Asleep|Dreaming|Dozing)", p_dump)
     wakefulness = wake_m.group(1) if wake_m else "Unknown"
 
-    return {"screen_on": is_screen_on, "wakefulness": wakefulness}
+    return {"reachable": True, "screen_on": is_screen_on, "wakefulness": wakefulness}
 
 
 def is_protected_launcher(pkg: str, cfg: dict) -> bool:
@@ -203,7 +210,7 @@ def check_anr_and_health(cfg: dict) -> tuple[int, int]:
         for line in anr_stat.splitlines():
             parts = line.strip().split()
             if len(parts) >= 2 and parts[-1].isdigit():
-                filepath = parts[0]
+                filepath = parts[0].strip("'\"")
                 mtime = int(parts[-1])
                 age_hours = (now_epoch - mtime) / 3600.0
                 if (now_epoch - mtime) <= max_age_sec:
@@ -211,8 +218,8 @@ def check_anr_and_health(cfg: dict) -> tuple[int, int]:
                     logger.warning(f"  -> Fresh ANR detected: {filepath} ({age_hours:.1f}h old)")
                 else:
                     old_anr_count += 1
-                    del_out = run_adb(cfg, ["shell", f"rm -f {filepath} 2>/dev/null && echo DELETED"])
-                    if "DELETED" in del_out:
+                    del_out = run_adb(cfg, ["shell", f"rm -f {filepath} 2>&1 && echo DELETED"])
+                    if "DELETED" in del_out and "Permission denied" not in del_out:
                         logger.info(f"  -> Removed stale ANR file: {filepath}")
 
     if recent_anr_count == 0 and old_anr_count == 0:
@@ -269,12 +276,13 @@ def apply_system_policies(cfg: dict):
     if default_launcher:
         run_adb(cfg, ["shell", "cmd", "package", "set-home-activity", default_launcher])
 
-    # 3. Rule 1: Keep accessibility services disabled to prevent remote button lags
-    acc = run_adb(cfg, ["shell", "settings", "get", "secure", "enabled_accessibility_services"])
-    if acc and acc != "null":
-        run_adb(cfg, ["shell", "settings", "put", "secure", "enabled_accessibility_services", "null"])
-        run_adb(cfg, ["shell", "settings", "put", "secure", "accessibility_enabled", "0"])
-        logger.info("Reset enabled_accessibility_services to null.")
+    # 3. Rule 1: Keep accessibility services disabled (unless user opted out) to prevent remote button lags & Back-key freezes
+    if cfg.get("disable_accessibility_services", True):
+        acc = run_adb(cfg, ["shell", "settings", "get", "secure", "enabled_accessibility_services"])
+        if acc and acc != "null":
+            run_adb(cfg, ["shell", "settings", "put", "secure", "enabled_accessibility_services", "null"])
+            run_adb(cfg, ["shell", "settings", "put", "secure", "accessibility_enabled", "0"])
+            logger.info("Reset enabled_accessibility_services to null.")
 
     # 4. Headless Power & Storage Policies
     run_adb(cfg, ["shell", "settings", "put", "global", "wifi_scan_always_enabled", "0"])
@@ -297,9 +305,15 @@ def apply_system_policies(cfg: dict):
     # 6. Private DNS Safety Check
     desired_dns = cfg.get("desired_private_dns", "off")
     cur_dns = run_adb(cfg, ["shell", "settings", "get", "global", "private_dns_mode"])
-    if desired_dns == "off" and cur_dns != "off":
-        run_adb(cfg, ["shell", "settings", "put", "global", "private_dns_mode", "off"])
-        logger.info("Set private_dns_mode to 'off' (prevents cold-boot TLS deadlocks)")
+    cur_spec = run_adb(cfg, ["shell", "settings", "get", "global", "private_dns_specifier"])
+    if desired_dns.lower() == "off":
+        if cur_dns != "off":
+            run_adb(cfg, ["shell", "settings", "put", "global", "private_dns_mode", "off"])
+            logger.info("Set private_dns_mode to 'off' (prevents cold-boot TLS deadlocks)")
+    elif cur_dns != "hostname" or cur_spec != desired_dns:
+        run_adb(cfg, ["shell", "settings", "put", "global", "private_dns_mode", "hostname"])
+        run_adb(cfg, ["shell", "settings", "put", "global", "private_dns_specifier", desired_dns])
+        logger.info(f"Set Private DNS to hostname '{desired_dns}'.")
 
 
 def optimize_aot(cfg: dict):
@@ -368,13 +382,13 @@ def measure_cold_starts(cfg: dict) -> dict:
 
 def trim_memory_and_caches(cfg: dict, live_mode=False):
     """Trims app cache buffers and invokes storage fstrim, protecting the active foreground app."""
-    fg_pkg = get_foreground_app(cfg) if live_mode else ""
+    fg_pkg = get_foreground_app(cfg)
     logger.info(f"Running cache trimming and filesystem fstrim (live_mode={live_mode}, foreground={fg_pkg or 'none'})...")
     run_adb(cfg, ["shell", "pm", "trim-caches", "4096M"], timeout=15)
     run_adb(cfg, ["shell", "sm", "fstrim"], timeout=30)
 
-    if not live_mode:
-        # Full maintenance: selectively stop background streaming apps
+    if not live_mode and cfg.get("force_stop_background_apps", True):
+        # Full maintenance: selectively stop background streaming apps (never kill-all or protected launchers)
         core_apps = cfg.get("core_apps", [])
         for app in core_apps:
             pkg = app["pkg"]

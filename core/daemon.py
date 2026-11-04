@@ -9,11 +9,12 @@ import json
 import logging
 import os
 import re
+import signal
 import socket
 import subprocess
 import sys
 import time
-from datetime import date, datetime
+from datetime import datetime
 from logging.handlers import RotatingFileHandler
 
 CORE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -24,7 +25,8 @@ if CORE_DIR not in sys.path:
 from optimizer import load_config, get_screen_state, connect_adb, is_protected_launcher, get_foreground_app
 from power_recovery import heal_tv_if_needed
 
-LOG_FILE = os.path.join(BASE_DIR, "tv_daemon.log")
+LOG_DIR = os.path.join(BASE_DIR, "logs") if os.path.isdir(os.path.join(BASE_DIR, "logs")) else BASE_DIR
+LOG_FILE = os.path.join(LOG_DIR, "tv_daemon.log")
 METRICS_FILE = os.path.join(BASE_DIR, "tv_standby_metrics.json")
 
 logger = logging.getLogger("tv_daemon")
@@ -90,18 +92,38 @@ def run_optimizer_live(config_path):
         logger.error(f"Failed to execute live trimming: {e}")
 
 
+def should_trigger_live_trim(cfg: dict, metrics: dict) -> bool:
+    last_m = metrics.get("last_live_maintenance")
+    if not last_m:
+        return True
+    try:
+        last_dt = datetime.strptime(last_m, "%Y-%m-%d %H:%M:%S")
+        hours_diff = (datetime.now() - last_dt).total_seconds() / 3600.0
+        min_h = cfg.get("min_hours_between_maintenance", 18)
+        return hours_diff >= min_h
+    except Exception:
+        return True
+
+
 def daemon_loop(config_path):
     cfg = load_config(config_path)
     metrics = load_metrics()
 
-    logger.info(f"Starting Headless TV Daemon for {cfg['tv_ip']}:{cfg['tv_port']}...")
+    def handle_exit(sig, frame):
+        logger.info("Received termination signal. Stopping TV Maintenance Daemon...")
+        sys.exit(0)
+
+    signal.signal(signal.SIGINT, handle_exit)
+    signal.signal(signal.SIGTERM, handle_exit)
+
+    logger.info(f"Starting TV Maintenance Daemon for {cfg['tv_ip']}:{cfg['tv_port']}...")
 
     was_online = False
     was_screen_on = False
     was_awake_session = False
     current_stream_app = None
     stream_start_time = None
-    last_live_trim_date = None
+    live_trim_done_session = False
     screen_off_time = None
 
     while True:
@@ -111,57 +133,67 @@ def daemon_loop(config_path):
 
             if online:
                 if not was_online:
-                    connect_adb(cfg)
-                    heal_tv_if_needed(cfg)
-                    was_online = True
-
-                screen = get_screen_state(cfg)
-                is_on = screen["screen_on"]
-
-                if is_on:
-                    if not was_screen_on:
-                        logger.info("TV Screen is ON (Active viewer detected).")
-                        was_screen_on = True
-                        was_awake_session = True
-                        screen_off_time = None
-
-                    active_pkg = get_foreground_app(cfg) or "unknown"
-                    core_pkgs = {app["pkg"] for app in cfg.get("core_apps", [])}
-
-                    if active_pkg in core_pkgs and not is_protected_launcher(active_pkg, cfg):
-                        if current_stream_app != active_pkg:
-                            current_stream_app = active_pkg
-                            stream_start_time = time.time()
-                            logger.info(f"Playback detected in: {active_pkg}")
-                        else:
-                            duration_min = (time.time() - stream_start_time) / 60.0
-                            wait_min = cfg.get("live_playback_wait_minutes", 5)
-                            today = date.today()
-
-                            if duration_min >= wait_min and last_live_trim_date != today:
-                                logger.info(f"Continuous streaming in {active_pkg} >= {wait_min}m. Triggering live-trimming...")
-                                run_optimizer_live(config_path)
-                                last_live_trim_date = today
-                                metrics["last_live_maintenance"] = now_str
-                                save_metrics(metrics)
-                                logger.info("Live-trimming completed safely in background.")
+                    if connect_adb(cfg):
+                        was_online = True
                     else:
-                        current_stream_app = None
-                        stream_start_time = None
+                        online = False
 
-                    time.sleep(10)
+            if online:
+                screen = get_screen_state(cfg)
+                if not screen.get("reachable", True):
+                    # ADB dropped right as command ran (TV entering deep sleep)
+                    online = False
                 else:
-                    # Screen is OFF (Light Standby or Doze heartbeat)
-                    if was_screen_on:
-                        logger.info("TV Screen turned OFF (Light Standby initiated).")
-                        was_screen_on = False
-                        screen_off_time = time.time()
-                        current_stream_app = None
-                        metrics["last_screen_off"] = now_str
-                        save_metrics(metrics)
+                    is_on = screen["screen_on"]
 
-                    time.sleep(5)
-            else:
+                    if is_on:
+                        if not was_screen_on:
+                            logger.info("TV Screen is ON (Active viewer detected).")
+                            heal_tv_if_needed(cfg)
+                            was_screen_on = True
+                            was_awake_session = True
+                            screen_off_time = None
+
+                        active_pkg = get_foreground_app(cfg) or "unknown"
+                        core_pkgs = {app["pkg"] for app in cfg.get("core_apps", [])}
+
+                        if active_pkg in core_pkgs and not is_protected_launcher(active_pkg, cfg):
+                            if current_stream_app != active_pkg:
+                                current_stream_app = active_pkg
+                                stream_start_time = time.time()
+                                logger.info(f"Playback detected in: {active_pkg}")
+                            else:
+                                duration_min = (time.time() - stream_start_time) / 60.0
+                                wait_min = cfg.get("live_playback_wait_minutes", 5)
+
+                                if duration_min >= wait_min and not live_trim_done_session:
+                                    live_trim_done_session = True
+                                    if should_trigger_live_trim(cfg, metrics):
+                                        logger.info(f"Continuous streaming in {active_pkg} >= {wait_min}m. Triggering live-trimming...")
+                                        run_optimizer_live(config_path)
+                                        metrics["last_live_maintenance"] = now_str
+                                        save_metrics(metrics)
+                                        logger.info("Live-trimming completed safely in background.")
+                                    else:
+                                        logger.info("Live-trimming already performed within cooldown window.")
+                        else:
+                            current_stream_app = None
+                            stream_start_time = None
+
+                        time.sleep(10)
+                    else:
+                        # Screen is OFF (Light Standby or Doze heartbeat)
+                        if was_screen_on:
+                            logger.info("TV Screen turned OFF (Light Standby initiated).")
+                            was_screen_on = False
+                            screen_off_time = time.time()
+                            current_stream_app = None
+                            metrics["last_screen_off"] = now_str
+                            save_metrics(metrics)
+
+                        time.sleep(5)
+
+            if not online:
                 # Port 5555 closed (TV in deep sleep / WoWLAN)
                 if was_online:
                     if was_awake_session:
@@ -173,7 +205,7 @@ def daemon_loop(config_path):
                             logger.info(f"TV entered deep sleep! Measured Light Standby duration (X): {x_human} ({standby_sec:.1f}s)")
                         else:
                             standby_sec = 0.0
-                            x_human = "< 10s (Direct Deep Sleep)"
+                            x_human = "< 15s (Direct Deep Sleep)"
                             metrics["last_screen_off"] = now_str
                             logger.info(f"TV turned off and entered deep sleep directly ({x_human}).")
 
@@ -194,6 +226,7 @@ def daemon_loop(config_path):
                     was_awake_session = False
                     screen_off_time = None
                     current_stream_app = None
+                    live_trim_done_session = False
 
                 time.sleep(15)
 

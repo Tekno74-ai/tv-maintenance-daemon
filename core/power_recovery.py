@@ -45,6 +45,9 @@ def heal_tv_if_needed(cfg: dict) -> bool:
         run_adb(cfg, ["shell", "settings", "put", "global", "ntp_server", "time.google.com"])
         run_adb(cfg, ["shell", "settings", "put", "global", "private_dns_mode", "off"])
         run_adb(cfg, ["shell", "settings", "put", "global", "stay_on_while_plugged_in", "0"])
+        if cfg.get("disable_accessibility_services", True):
+            run_adb(cfg, ["shell", "settings", "put", "secure", "enabled_accessibility_services", "null"])
+            run_adb(cfg, ["shell", "settings", "put", "secure", "accessibility_enabled", "0"])
 
         anim_scale = str(cfg.get("animation_scale", 0.5))
         for scale_key in ["window_animation_scale", "transition_animation_scale", "animator_duration_scale"]:

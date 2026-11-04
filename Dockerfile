@@ -13,10 +13,10 @@ WORKDIR /app
 
 COPY . /app
 
-# Setup default crontab for 04:30 nightly maintenance
-RUN echo "30 4 * * * root /usr/local/bin/python /app/core/optimizer.py --wake >> /app/tv_cron.log 2>&1" > /etc/cron.d/tv-maintenance && \
+# Setup default system crontab for 04:30 nightly maintenance (/etc/cron.d uses 6-field format with user)
+RUN printf "30 4 * * * root /usr/local/bin/python /app/core/optimizer.py --wake >> /app/logs/tv_cron.log 2>&1\n" > /etc/cron.d/tv-maintenance && \
     chmod 0644 /etc/cron.d/tv-maintenance && \
-    crontab /etc/cron.d/tv-maintenance
+    mkdir -p /app/logs /data
 
 ENV PYTHONUNBUFFERED=1
 

@@ -43,8 +43,9 @@ pm trim-caches 4096M && sm fstrim
 Memory is reclaimed and flash storage blocks are trimmed **in the background without interrupting the video stream**.
 
 ### 4. 🛡️ Broadcast Tuner & Home Button Trap Shield
-On many Android TVs (e.g. Philips, TCL), boot routines or accidental presses of the remote's "TV" button launch the built-in DVB tuner (`org.droidtv.playtv`). Without an aerial cable, the firmware traps the user in a modal "No Signal" search dialog that intercepts and swallows the Home button.
-* Headless TV Optimizer permanently disables the tuner suite at the OS level (`pm disable-user --user 0`). The intent is rejected instantly, Home/Back buttons remain 100% responsive, and HDMI input selection remains fully intact.
+On many Android TVs (e.g. Philips, TCL), boot routines or accidental presses of the remote's "TV" button launch the built-in DVB tuner (`org.droidtv.playtv`). Without an aerial cable, the firmware traps the user in a modal "No Signal" search dialog that intercepts and swallows the Home and Back buttons.
+* **TV Maintenance Daemon** permanently disables the tuner suite at the OS level (`pm disable-user --user 0`). The intent is rejected instantly, Home/Back buttons remain 100% responsive, and HDMI input selection remains fully intact.
+* It also guards against accessibility-service key filtering lag (`enabled_accessibility_services = null` by default), preventing the 100–300 ms remote D-pad delay and `KEYCODE_BACK` drops seen when third-party launchers hook Android's `InputFilter`.
 
 ### 5. ⏰ Cold-Boot RTC & Private DNS Healer
 Many smart TVs lack a hardware battery backup for their Real-Time Clock (RTC). Following a power outage, the clock resets to the firmware build date. If Private DNS (DoT via TLS) is enabled, TLS certificate validation fails and network access deadlocks before NTP can sync.
@@ -142,9 +143,12 @@ Publishes atomic status updates including **True Available Memory** (`MemAvailab
 | `wol_broadcast` | string | `"255.255.255.255"` | Subnet broadcast address for WoL packets. |
 | `allow_wol_wake` | boolean | `true` | Send WoL packet before nightly maintenance. |
 | `enforce_sleep_after_maintenance` | boolean | `true` | Extra safety check to guarantee screen remains asleep. |
+| `disable_accessibility_services` | boolean | `true` | Reset `enabled_accessibility_services` to `null` to prevent Back-button freezes and 100–300 ms remote D-pad lag. Set `false` if using a custom key helper. |
+| `force_stop_background_apps` | boolean | `true` | Selectively stop inactive streaming apps during headless night maintenance (never uses `am kill-all` or stops the active launcher). |
 | `animation_scale` | float | `0.5` | Global Android animation scale multiplier. |
 | `desired_private_dns` | string | `"off"` | Recommended `"off"` to prevent cold-boot TLS deadlocks. |
 | `live_playback_wait_minutes`| integer | `5` | Minutes of continuous streaming before live-trimming. |
+| `min_hours_between_maintenance` | integer | `18` | Minimum hours between live-trimming runs. |
 | `default_launcher` | string | `""` | Activity of preferred custom launcher (e.g. Projectivy). |
 | `core_apps` | array | `[...]` | List of packages to keep AOT speed-compiled. |
 | `disabled_packages` | array | `[...]` | Packages to disable at OS level for user 0. |
