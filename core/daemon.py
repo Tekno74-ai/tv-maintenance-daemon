@@ -155,7 +155,7 @@ def daemon_loop(config_path):
                             screen_off_time = None
 
                         active_pkg = get_foreground_app(cfg) or "unknown"
-                        core_pkgs = {app["pkg"] for app in cfg.get("core_apps", [])}
+                        core_pkgs = {app["pkg"] if isinstance(app, dict) else app for app in cfg.get("core_apps", [])}
 
                         if active_pkg in core_pkgs and not is_protected_launcher(active_pkg, cfg):
                             if current_stream_app != active_pkg:

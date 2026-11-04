@@ -77,7 +77,27 @@ def load_config(path=None) -> dict:
         cfg = json.load(f)
 
     # Defaults & Environment overrides
-    cfg["adb_bin"] = os.environ.get("ADB_PATH", cfg.get("adb_path", "adb"))
+    configured_adb = os.environ.get("ADB_PATH", cfg.get("adb_path", "adb"))
+    if not os.path.exists(configured_adb):
+        if os.name == "nt":
+            cand = os.path.join(BASE_DIR, "platform-tools", "adb.exe")
+            parent_cand = os.path.join(os.path.dirname(BASE_DIR), "platform-tools", "adb.exe")
+            tv_cand = os.path.join(os.path.dirname(BASE_DIR), "TV", "platform-tools", "adb.exe")
+            if os.path.exists(cand):
+                configured_adb = cand
+            elif os.path.exists(parent_cand):
+                configured_adb = parent_cand
+            elif os.path.exists(tv_cand):
+                configured_adb = tv_cand
+            else:
+                configured_adb = "adb"
+        else:
+            cand = "/volume1/homes/Marcus/scripts/platform-tools/adb"
+            if os.path.exists(cand):
+                configured_adb = cand
+            else:
+                configured_adb = "adb"
+    cfg["adb_bin"] = configured_adb
     cfg["tv_ip"] = os.environ.get("TV_IP", cfg.get("tv_ip", "127.0.0.1"))
     cfg["tv_port"] = int(os.environ.get("TV_PORT", cfg.get("tv_port", 5555)))
     cfg["tv_mac"] = os.environ.get("TV_MAC", cfg.get("tv_mac", ""))
@@ -326,8 +346,8 @@ def optimize_aot(cfg: dict):
     run_adb(cfg, ["shell", "pm", "set-install-location", "0"])
 
     for app in core_apps:
-        pkg = app["pkg"]
-        name = app.get("name", pkg)
+        pkg = app["pkg"] if isinstance(app, dict) else app
+        name = app.get("name", pkg) if isinstance(app, dict) else pkg
         path_out = run_adb(cfg, ["shell", "pm", "path", pkg])
         if not path_out:
             continue
@@ -353,9 +373,9 @@ def measure_cold_starts(cfg: dict) -> dict:
     logger.info("Measuring cold-start latency (TotalTime ms) for core apps...")
     results = {}
     for app in cfg.get("core_apps", []):
-        name = app.get("name", app["pkg"])
-        pkg = app["pkg"]
-        act = app.get("activity")
+        pkg = app["pkg"] if isinstance(app, dict) else app
+        name = app.get("name", pkg) if isinstance(app, dict) else pkg
+        act = app.get("activity") if isinstance(app, dict) else None
         if not act:
             continue
 
@@ -391,7 +411,7 @@ def trim_memory_and_caches(cfg: dict, live_mode=False):
         # Full maintenance: selectively stop background streaming apps (never kill-all or protected launchers)
         core_apps = cfg.get("core_apps", [])
         for app in core_apps:
-            pkg = app["pkg"]
+            pkg = app["pkg"] if isinstance(app, dict) else app
             if is_protected_launcher(pkg, cfg) or (fg_pkg and pkg == fg_pkg):
                 continue
             run_adb(cfg, ["shell", "am", "force-stop", pkg], timeout=5)
