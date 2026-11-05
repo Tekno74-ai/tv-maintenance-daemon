@@ -108,7 +108,12 @@ def should_trigger_live_trim(cfg: dict, metrics: dict) -> bool:
 
 
 def daemon_loop(config_path):
+    global METRICS_FILE
     cfg = load_config(config_path)
+    metrics_path = cfg.get("metrics_file_path")
+    if not metrics_path:
+        metrics_path = os.path.join(os.path.dirname(os.path.abspath(config_path)), "tv_standby_metrics.json")
+    METRICS_FILE = metrics_path
     metrics = load_metrics()
 
     def handle_exit(sig, frame):

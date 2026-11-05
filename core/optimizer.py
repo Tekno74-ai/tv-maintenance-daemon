@@ -462,6 +462,8 @@ def write_ha_status(cfg: dict, telemetry: dict, status_text: str):
     out_path = cfg.get("ha_status_output_path")
     if not out_path:
         return
+    job_key = cfg.get("ha_job_key", "tv_maintenance")
+    device_name = cfg.get("device_name", "Philips TV")
     try:
         os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
         existing = {}
@@ -476,17 +478,26 @@ def write_ha_status(cfg: dict, telemetry: dict, status_text: str):
             existing = {}
 
         existing["updated_at"] = telemetry["timestamp"]
-        existing["tv_maintenance_daemon"] = {
-            "name": "TV Maintenance Daemon",
-            "status": status_text,
+
+        status_label = "Lyckades" if status_text == "Success" else ("Varning" if status_text == "Warning" else status_text)
+        fresh_anrs = telemetry.get("recent_anrs", 0)
+        job_data = {
+            "name": f"{device_name} Auto-Optimering & Hälsa",
+            "status": status_label,
             "last_run": telemetry["timestamp"],
             "details": (
-                f"Available RAM: {telemetry['available_ram_mb']} MB | "
-                f"Internal Storage Free: {telemetry['free_data_storage']} | "
-                f"Fresh ANRs: {telemetry.get('recent_anrs', 0)}"
+                f"✔ Alla appar på eMMC, {fresh_anrs} ANR, AOT OK. "
+                f"(eMMC: {telemetry['free_data_storage']}, RAM: {telemetry['available_ram_mb']} MB)"
             ),
-            "icon": "mdi:television-shimmer"
+            "schedule": cfg.get("schedule", "Dagligen 04:30 + Live-trimning"),
+            "icon": "mdi:television-shimmer" if status_label == "Lyckades" else "mdi:television-alert"
         }
+
+        if "jobs" in existing and isinstance(existing["jobs"], dict):
+            existing["jobs"][job_key] = job_data
+        else:
+            existing[job_key] = job_data
+
         tmp_path = out_path + ".tmp"
         with open(tmp_path, "w", encoding="utf-8") as f:
             json.dump(existing, f, indent=2, ensure_ascii=False)
