@@ -4,6 +4,7 @@
 [![Python: 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/)
 [![Docker](https://img.shields.io/badge/docker-ready-green.svg)](Dockerfile)
 [![Platform](https://img.shields.io/badge/platform-Android%20TV%20%7C%20Google%20TV-brightgreen.svg)]()
+[![AI Pair-Programmed](https://img.shields.io/badge/Built%20with-AI%20Pair--Programming-blueviolet.svg)]()
 
 > Autonomous 24/7 background maintenance daemon, persistent AOT speed-compilation, and live-trimming companion for Android TV and Google TV devices.
 
@@ -29,7 +30,7 @@ Wakes the TV's Linux kernel and Wi-Fi interface at night (e.g., 04:30 AM) via Wa
 * By strictly maintaining `Settings.Global.STAY_ON_WHILE_PLUGGED_IN = 0` (preventing AOSP `PowerManagerService` from triggering `wakeUpNoUpdateLocked`), intensive maintenance and AOT compiling run completely in the dark without the panel or backlights ever turning on.
 
 ### 2. ⚡ Autonomous AOT Speed-Compilation (`compile -m speed`)
-Checks configured streaming apps (Netflix, YouTube, SVT Play, HBO Max, etc.) daily. If an app was updated by Google Play, the engine automatically compiles its DEX bytecode to native machine code using Android's Ahead-of-Time compiler:
+Checks configured streaming apps (Netflix, YouTube, Prime Video, Disney+, Apple TV, Max, Plex, etc.) daily. If an app was updated by Google Play, the engine automatically compiles its DEX bytecode to native machine code using Android's Ahead-of-Time compiler:
 ```bash
 cmd package compile -m speed -f <package>
 ```
@@ -42,10 +43,10 @@ pm trim-caches 4096M && sm fstrim
 ```
 Memory is reclaimed and flash storage blocks are trimmed **in the background without interrupting the video stream**.
 
-### 4. 🛡️ Broadcast Tuner & Home Button Trap Shield
-On many Android TVs (e.g. Philips, TCL), boot routines or accidental presses of the remote's "TV" button launch the built-in DVB tuner (`org.droidtv.playtv`). Without an aerial cable, the firmware traps the user in a modal "No Signal" search dialog that intercepts and swallows the Home and Back buttons.
-* **TV Maintenance Daemon** permanently disables the tuner suite at the OS level (`pm disable-user --user 0`). The intent is rejected instantly, Home/Back buttons remain 100% responsive, and HDMI input selection remains fully intact.
-* It also guards against accessibility-service key filtering lag (`enabled_accessibility_services = null` by default), preventing the 100–300 ms remote D-pad delay and `KEYCODE_BACK` drops seen when third-party launchers hook Android's `InputFilter`.
+### 4. 🛡️ Configurable Package Policy & Remote Lag Shield
+Safely keeps bloatware, aggressive OEM recommendations, and background telemetry disabled at the OS level (`pm disable-user --user 0`) based on your custom `disabled_packages` configuration, without touching system partitions.
+* **Tip for streaming-only sets:** On TVs where boot routines or accidental remote presses trigger a modal broadcast tuner screen (e.g. `org.droidtv.playtv`) that traps the Home or Back button, adding the tuner package to `disabled_packages` safely prevents the dialog. *(Users who watch live broadcast TV via an aerial antenna should leave tuner packages enabled).*
+* **Accessibility Key-Filter Guard:** Guards against accessibility-service key filtering lag (`enabled_accessibility_services = null` by default), preventing the 100–300 ms remote D-pad delay and `KEYCODE_BACK` drops seen when third-party launchers hook Android's `InputFilter`.
 
 ### 5. ⏰ Cold-Boot RTC & Private DNS Healer
 Many smart TVs lack a hardware battery backup for their Real-Time Clock (RTC). Following a power outage, the clock resets to the firmware build date. If Private DNS (DoT via TLS) is enabled, TLS certificate validation fails and network access deadlocks before NTP can sync.
@@ -54,8 +55,8 @@ Many smart TVs lack a hardware battery backup for their Real-Time Clock (RTC). F
 ### 6. 🏎️ 0.5x UI Animation Scale Injector
 Locks Android's global window, transition, and animator duration scales to `0.5x` (or custom), eliminating UI latency and giving launcher navigation an immediate, Apple TV-like responsiveness.
 
-### 7. 📊 Home Assistant Telemetry
-Publishes atomic status updates including **True Available Memory** (`MemAvailable` parsed from `/proc/meminfo`, rather than misleading `MemFree`), storage metrics, ANRs, and standby duration metrics directly to Home Assistant.
+### 7. 📊 Home Automation & Telemetry Integration
+Publishes atomic, clean JSON status metrics including **True Available Memory** (`MemAvailable` parsed from `/proc/meminfo`, rather than misleading `MemFree`), storage metrics, ANRs, and standby duration metrics directly to a customizable output path (e.g. for Home Assistant file/command sensors, Prometheus, or Grafana).
 
 ---
 
@@ -159,6 +160,12 @@ Publishes atomic status updates including **True Available Memory** (`MemAvailab
 
 * Community debloat profiles and model knowledge: [CleanYourTV (Gathin23/cleanyourtv)](https://github.com/Gathin23/cleanyourtv)
 * Recommended lightweight launcher: [Projectivy Launcher](https://github.com/spocky/projectivy-launcher)
+
+---
+
+## 🤖 Built with AI Pair-Programming
+
+This project was architected and vibe-coded through continuous human-AI pair-programming (using Google DeepMind Antigravity) and empirically verified across real-world Android TV hardware and 24/7 server environments.
 
 ---
 

@@ -27,10 +27,6 @@
     { "name": "Projectivy",      "pkg": "com.spocky.projengmenu",            "activity": "com.spocky.projengmenu/.ui.home.MainActivity" }
   ],
   "disabled_packages": [
-    "org.droidtv.playtv",
-    "org.droidtv.euinstallertc",
-    "org.droidtv.euinstallersat",
-    "org.droidtv.teletext",
     "org.droidtv.demome",
     "org.droidtv.sticker",
     "org.droidtv.usagelogger",

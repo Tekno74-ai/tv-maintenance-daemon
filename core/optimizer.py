@@ -466,7 +466,7 @@ def write_ha_status(cfg: dict, telemetry: dict, status_text: str):
     if not out_path:
         return
     job_key = cfg.get("ha_job_key", "tv_maintenance")
-    device_name = cfg.get("device_name", "Philips TV")
+    device_name = cfg.get("device_name", "Android TV")
     try:
         os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
         existing = {}
@@ -482,18 +482,26 @@ def write_ha_status(cfg: dict, telemetry: dict, status_text: str):
 
         existing["updated_at"] = telemetry["timestamp"]
 
-        status_label = "Lyckades" if status_text == "Success" else ("Varning" if status_text == "Warning" else status_text)
+        status_label = cfg.get("ha_status_text", status_text)
         fresh_anrs = telemetry.get("recent_anrs", 0)
+        
+        custom_template = cfg.get("ha_details_template")
+        if custom_template:
+            details_str = custom_template.format(**telemetry)
+        else:
+            details_str = (
+                f"RAM: {telemetry['available_ram_mb']} MB available | "
+                f"Storage: {telemetry['free_data_storage']} free | "
+                f"Fresh ANRs: {fresh_anrs}"
+            )
+
         job_data = {
-            "name": f"{device_name} Auto-Optimering & Hälsa",
+            "name": cfg.get("ha_job_name", f"{device_name} Maintenance & Health"),
             "status": status_label,
             "last_run": telemetry["timestamp"],
-            "details": (
-                f"✔ Alla appar på eMMC, {fresh_anrs} ANR, AOT OK. "
-                f"(eMMC: {telemetry['free_data_storage']}, RAM: {telemetry['available_ram_mb']} MB)"
-            ),
-            "schedule": cfg.get("schedule", "Dagligen 04:30 + Live-trimning"),
-            "icon": "mdi:television-shimmer" if status_label == "Lyckades" else "mdi:television-alert"
+            "details": details_str,
+            "schedule": cfg.get("schedule", "Daily 04:30 + Live-trimming"),
+            "icon": "mdi:television-shimmer" if status_text == "Success" else "mdi:television-alert"
         }
 
         if "jobs" in existing and isinstance(existing["jobs"], dict):
