@@ -11,12 +11,12 @@
    - Nightly maintenance runs with the screen completely OFF (`mWakefulness=Asleep`, `mState=OFF`).
    - `Settings.Global.STAY_ON_WHILE_PLUGGED_IN` MUST always remain `0`.
    - NEVER execute `svc power stayon true` or any command that wakes the physical display backlights.
-2. **Never Touch Accessibility Services:**
-   - Custom launchers (e.g. Projectivy Launcher) rely on system input mapping. Altering `enabled_accessibility_services` breaks remote control Home/Back button capture.
+2. **Accessibility Key-Filter Guard:**
+   - Keep `enabled_accessibility_services` disabled (`null`) by default unless the user explicitly enables an assistive service. This prevents 100–300 ms D-pad lag and `KEYCODE_BACK` dropouts caused by third-party launcher key hooking.
 3. **Never Disable Wi-Fi Interface:**
    - Disabling Wi-Fi via `svc wifi disable` completely cuts remote ADB connectivity and bricks Wake-on-LAN reception.
-4. **Broadcast Tuner Trap Protection:**
-   - Stock broadcast tuners (`org.droidtv.playtv`) must remain disabled (`pm disable-user --user 0`) to prevent modal "No Signal" dialog traps that swallow remote buttons.
+4. **Configurable Package Policy:**
+   - Respect user configurations in `disabled_packages` (`pm disable-user --user 0`). Never force-disable tuners for users who rely on aerial antennas.
 5. **AOT Speed-Compilation Invariant:**
    - Ahead-of-Time compilation must use `cmd package compile -m speed -f <pkg>`.
    - Never force compilation during active user streaming sessions.
@@ -25,17 +25,17 @@
 
 ## 2. Deterministic Commands & Verification
 
-Run from the project root (`c:\Users\marcu\antigravity\tv-maintenance-daemon`):
+Run from the project root:
 
-```powershell
+```bash
 # 1. Run Python syntax & import check on core modules:
 python -m py_compile core/daemon.py core/optimizer.py core/power_recovery.py
 
 # 2. Test Docker build:
 docker build -t tv-maintenance-daemon:test .
 
-# 3. Dry-run optimizer logic:
-python -c "from core.optimizer import TVOptimizer; print('TVOptimizer loaded successfully')"
+# 3. Test optimizer status check (dry run):
+python core/optimizer.py --status
 ```
 
 ---

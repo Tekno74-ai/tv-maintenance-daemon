@@ -12,5 +12,5 @@ services:
       - ./logs:/app/logs
       - /etc/localtime:/etc/localtime:ro
     environment:
-      - TZ=Europe/Stockholm
+      - TZ=${TZ:-UTC}
       - PYTHONUNBUFFERED=1
