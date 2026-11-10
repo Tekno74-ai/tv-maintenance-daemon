@@ -94,9 +94,12 @@ def load_config(path=None) -> dict:
             else:
                 configured_adb = "adb"
         else:
-            cand = "/volume1/homes/Marcus/scripts/platform-tools/adb"
+            cand = os.path.join(BASE_DIR, "platform-tools", "adb")
+            parent_cand = os.path.join(os.path.dirname(BASE_DIR), "platform-tools", "adb")
             if os.path.exists(cand):
                 configured_adb = cand
+            elif os.path.exists(parent_cand):
+                configured_adb = parent_cand
             else:
                 configured_adb = "adb"
     cfg["adb_bin"] = configured_adb
