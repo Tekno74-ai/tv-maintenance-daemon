@@ -585,7 +585,7 @@ def run_maintenance(cfg: dict, wake=False, live_mode=False):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Headless TV Optimizer Engine")
+    parser = argparse.ArgumentParser(description="TV Maintenance Daemon Optimizer Engine")
     parser.add_argument("--config", help="Path to config.json")
     parser.add_argument("--wake", action="store_true", help="Send Wake-on-LAN and perform headless night maintenance")
     parser.add_argument("--live", action="store_true", help="Perform gentle live trimming during active streaming")

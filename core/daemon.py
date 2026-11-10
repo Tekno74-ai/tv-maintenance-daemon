@@ -246,7 +246,7 @@ def daemon_loop(config_path):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Headless TV 24/7 Monitor Daemon")
+    parser = argparse.ArgumentParser(description="TV Maintenance Daemon - 24/7 Monitor")
     parser.add_argument("--config", help="Path to config.json")
     args = parser.parse_args()
     daemon_loop(args.config)

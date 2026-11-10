@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Headless TV Cold-Boot & Power Recovery
+TV Maintenance Daemon - Cold-Boot & Power Recovery
 Recovers smart TVs from hardware clock reset (lack of RTC battery) and prevents Private DNS deadlock.
 """
 
@@ -78,7 +78,7 @@ def heal_tv_if_needed(cfg: dict) -> bool:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="TV Cold-Boot & Clock Recovery")
+    parser = argparse.ArgumentParser(description="TV Maintenance Daemon - Cold-Boot & Clock Recovery")
     parser.add_argument("--config", help="Path to config.json")
     args = parser.parse_args()
     cfg = load_config(args.config)
