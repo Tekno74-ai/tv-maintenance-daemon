@@ -46,7 +46,7 @@ Memory is reclaimed and flash storage blocks are trimmed **in the background wit
 ### 4. 🛡️ Configurable Package Policy & Remote Lag Shield
 Safely keeps bloatware, aggressive OEM recommendations, and background telemetry disabled at the OS level (`pm disable-user --user 0`) based on your custom `disabled_packages` configuration, without touching system partitions.
 * **Tip for streaming-only sets:** On TVs where boot routines or accidental remote presses trigger a modal broadcast tuner screen (e.g. `org.droidtv.playtv`) that traps the Home or Back button, adding the tuner package to `disabled_packages` safely prevents the dialog. *(Users who watch live broadcast TV via an aerial antenna should leave tuner packages enabled).*
-* **Accessibility Key-Filter Guard:** Guards against accessibility-service key filtering lag (`enabled_accessibility_services = null` by default), preventing the 100–300 ms remote D-pad delay and `KEYCODE_BACK` drops seen when third-party launchers hook Android's `InputFilter`.
+* **Opt-In Remote Lag Shield:** Optional guard against accessibility-service key filtering lag (`disable_accessibility_services: false` by default). When opted in, it preserves the launcher's own accessibility helpers while clearing non-essential background key filters that introduce 100–300 ms remote D-pad delay or `KEYCODE_BACK` drops.
 
 ### 5. ⏰ Cold-Boot RTC & Private DNS Healer
 Many smart TVs lack a hardware battery backup for their Real-Time Clock (RTC). Following a power outage, the clock resets to the firmware build date. If Private DNS (DoT via TLS) is enabled, TLS certificate validation fails and network access deadlocks before NTP can sync.
@@ -144,7 +144,7 @@ Publishes atomic, clean JSON status metrics including **True Available Memory** 
 | `wol_broadcast` | string | `"255.255.255.255"` | Subnet broadcast address for WoL packets. |
 | `allow_wol_wake` | boolean | `true` | Send WoL packet before nightly maintenance. |
 | `enforce_sleep_after_maintenance` | boolean | `true` | Extra safety check to guarantee screen remains asleep. |
-| `disable_accessibility_services` | boolean | `true` | Reset `enabled_accessibility_services` to `null` to prevent Back-button freezes and 100–300 ms remote D-pad lag. Set `false` if using a custom key helper. |
+| `disable_accessibility_services` | boolean | `false` | Opt-in guard: when `true`, clears non-essential key filters to prevent Back-button freezes and remote D-pad lag while preserving your launcher's Home-key and input helpers. |
 | `force_stop_background_apps` | boolean | `true` | Selectively stop inactive streaming apps during headless night maintenance (never uses `am kill-all` or stops the active launcher). |
 | `animation_scale` | float | `0.5` | Global Android animation scale multiplier. |
 | `desired_private_dns` | string | `"off"` | Recommended `"off"` to prevent cold-boot TLS deadlocks. |

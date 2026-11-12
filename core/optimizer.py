@@ -301,13 +301,22 @@ def apply_system_policies(cfg: dict):
     if default_launcher:
         run_adb(cfg, ["shell", "cmd", "package", "set-home-activity", default_launcher])
 
-    # 3. Rule 1: Keep accessibility services disabled (unless user opted out) to prevent remote button lags & Back-key freezes
-    if cfg.get("disable_accessibility_services", True):
+    # 3. Rule 1: Keep accessibility services clean (opt-in only, preserving launcher services) to prevent remote button lags
+    if cfg.get("disable_accessibility_services", False):
         acc = run_adb(cfg, ["shell", "settings", "get", "secure", "enabled_accessibility_services"])
         if acc and acc != "null":
-            run_adb(cfg, ["shell", "settings", "put", "secure", "enabled_accessibility_services", "null"])
-            run_adb(cfg, ["shell", "settings", "put", "secure", "accessibility_enabled", "0"])
-            logger.info("Reset enabled_accessibility_services to null.")
+            launcher_pkg = default_launcher.split("/")[0] if default_launcher else None
+            services = [s.strip() for s in acc.split(":") if s.strip()]
+            preserved = [s for s in services if launcher_pkg and launcher_pkg in s]
+            if preserved:
+                new_acc = ":".join(preserved)
+                if new_acc != acc:
+                    run_adb(cfg, ["shell", "settings", "put", "secure", "enabled_accessibility_services", new_acc])
+                    logger.info(f"Preserved launcher accessibility helper, removed rest: {new_acc}")
+            else:
+                run_adb(cfg, ["shell", "settings", "put", "secure", "enabled_accessibility_services", "null"])
+                run_adb(cfg, ["shell", "settings", "put", "secure", "accessibility_enabled", "0"])
+                logger.info("Reset non-essential enabled_accessibility_services to null.")
 
     # 4. Headless Power & Storage Policies
     run_adb(cfg, ["shell", "settings", "put", "global", "wifi_scan_always_enabled", "0"])
