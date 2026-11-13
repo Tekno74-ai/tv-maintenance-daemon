@@ -58,6 +58,24 @@
                 android:resource="@xml/module_card" />
         </activity>
 
+        <!-- 1-Click Remote Toggle Tile for Lisa's "Stickning" Lighting Mode -->
+        <activity
+            android:name=".ui.KnittingToggleActivity"
+            android:banner="@drawable/banner_knitting"
+            android:icon="@drawable/icon_knitting"
+            android:label="Stickbelysning"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
         <service
             android:name=".events.WatcherService"
             android:enabled="true"

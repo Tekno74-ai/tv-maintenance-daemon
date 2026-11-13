@@ -114,6 +114,15 @@ public final class WidgetCardProvider extends ContentProvider {
                 barRatio = Math.min(1f, Math.max(0.10f, (float) (s.tvDownMbps / 100.0)));
                 break;
             }
+            case "stickning": {
+                accentColor = s.knittingLightOn ? Color.parseColor("#FBBF24") : Color.parseColor("#64748B");
+                badge = "LJUSLÄGE STICKNING (LISA)";
+                headline = s.knittingLightOn ? "TÄNT 💡" : "SLÄCKT 🌙";
+                subline1 = "Tryck OK på fjärrkontrollen för att växla";
+                subline2 = "Home Assistant: input_boolean.stickbelysning";
+                barRatio = s.knittingLightOn ? 1.0f : 0.15f;
+                break;
+            }
             case "smilla":
             default: {
                 boolean out = s.isSmillaOut();

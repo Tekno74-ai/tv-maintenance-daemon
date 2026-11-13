@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="320dp"
+    android:height="180dp"
+    android:viewportWidth="320"
+    android:viewportHeight="180">
+    <path
+        android:fillColor="#1E1B4B"
+        android:pathData="M0,0h320v180h-320z" />
+    <!-- Warm amber glow circle (light/yarn ball) -->
+    <path
+        android:fillColor="#F59E0B"
+        android:pathData="M160,90m-46,0a46,46 0,1 1,92 0a46,46 0,1 1,-92 0" />
+    <!-- Knitting needles crossing -->
+    <path
+        android:fillColor="#FEF3C7"
+        android:pathData="M105,35 L112,28 L215,145 L208,152 Z" />
+    <path
+        android:fillColor="#FEF3C7"
+        android:pathData="M215,35 L208,28 L105,145 L112,152 Z" />
+</vector>

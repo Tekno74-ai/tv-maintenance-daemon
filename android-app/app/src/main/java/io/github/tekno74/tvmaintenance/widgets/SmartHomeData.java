@@ -10,6 +10,7 @@ import org.json.JSONObject;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
@@ -62,6 +63,9 @@ public final class SmartHomeData {
         public String ucgCpuPct = "30 %";
         public String nasDownKbps = "180 kB/s";
         public int wifiClients = 13;
+
+        // 6. Knitting Light Mode (Lisa)
+        public boolean knittingLightOn = false;
 
         public long updatedEpochMs = 0L;
 
@@ -216,6 +220,14 @@ public final class SmartHomeData {
             if (c24g != null) clients += (int) Math.max(0, parseDoubleSafe(c24g.optString("state", "0"), 0));
             if (clients > 0) snap.wifiClients = clients;
 
+            // Knitting Light Mode (Lisa)
+            String knitEntity = config.getKnittingEntityId();
+            JSONObject knitObj = fetchEntity(haUrl, haToken, knitEntity);
+            if (knitObj != null) {
+                String kState = optValidState(knitObj, "off");
+                snap.knittingLightOn = "on".equalsIgnoreCase(kState);
+            }
+
             snap.updatedEpochMs = wallNow;
             saveCached(context, snap);
         } catch (Exception e) {
@@ -295,6 +307,7 @@ public final class SmartHomeData {
         s.ucgCpuPct = p.getString("ucgCpuPct", s.ucgCpuPct);
         s.nasDownKbps = p.getString("nasDownKbps", s.nasDownKbps);
         s.wifiClients = p.getInt("wifiClients", s.wifiClients);
+        s.knittingLightOn = p.getBoolean("knittingLightOn", s.knittingLightOn);
         s.updatedEpochMs = p.getLong("updatedEpochMs", 0L);
         return s;
     }
@@ -325,7 +338,82 @@ public final class SmartHomeData {
                 .putString("ucgCpuPct", s.ucgCpuPct)
                 .putString("nasDownKbps", s.nasDownKbps)
                 .putInt("wifiClients", s.wifiClients)
+                .putBoolean("knittingLightOn", s.knittingLightOn)
                 .putLong("updatedEpochMs", s.updatedEpochMs)
                 .apply();
+    }
+
+    /**
+     * Toggles the "Stickning" lighting mode in Home Assistant:
+     *  1. Calls /api/services/homeassistant/turn_on or turn_off on config.getKnittingEntityId()
+     *  2. Ensures input_boolean.stickbelysning state is updated via /api/states/
+     *  3. Fires event "tv_stickbelysning_changed" with {"state": "on"|"off"} for easy HA automations.
+     */
+    public static synchronized boolean toggleKnittingLight(Context context, DaemonConfig config) {
+        Snapshot snap = loadCached(context);
+        boolean nextState = !snap.knittingLightOn;
+        snap.knittingLightOn = nextState;
+        saveCached(context, snap);
+
+        String haUrl = config.getHaUrl();
+        String haToken = config.getHaToken();
+        String entityId = config.getKnittingEntityId();
+        if (haUrl == null || haUrl.isEmpty() || haToken == null || haToken.isEmpty()) {
+            return nextState;
+        }
+
+        String stateStr = nextState ? "on" : "off";
+        String baseUrl = haUrl.replaceAll("/+$", "");
+
+        try {
+            // 1. Update/create state directly so input_boolean.stickbelysning exists immediately in HA
+            JSONObject stateBody = new JSONObject();
+            stateBody.put("state", stateStr);
+            JSONObject attrs = new JSONObject();
+            attrs.put("friendly_name", "Ljusläge: Stickning (Lisa)");
+            attrs.put("icon", "mdi:yarn");
+            attrs.put("triggered_by", "Philips Android TV Remote");
+            stateBody.put("attributes", attrs);
+            postHaJson(baseUrl + "/api/states/" + entityId, haToken, stateBody.toString());
+
+            // 2. Also call homeassistant/turn_on or turn_off service (if backed by a helper/light/switch/script)
+            String service = nextState ? "turn_on" : "turn_off";
+            JSONObject svcBody = new JSONObject();
+            svcBody.put("entity_id", entityId);
+            postHaJson(baseUrl + "/api/services/homeassistant/" + service, haToken, svcBody.toString());
+
+            // 3. Fire dedicated HA event "tv_stickbelysning_changed"
+            JSONObject evBody = new JSONObject();
+            evBody.put("entity_id", entityId);
+            evBody.put("state", stateStr);
+            postHaJson(baseUrl + "/api/events/tv_stickbelysning_changed", haToken, evBody.toString());
+
+            Log.i(TAG, "Toggled Stickbelysning (" + entityId + ") -> " + stateStr.toUpperCase(Locale.ROOT));
+        } catch (Exception e) {
+            Log.w(TAG, "Failed to toggle Stickbelysning in HA: " + e.getMessage());
+        }
+        return nextState;
+    }
+
+    private static void postHaJson(String urlStr, String token, String jsonPayload) {
+        HttpURLConnection conn = null;
+        try {
+            URL url = new URL(urlStr);
+            conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("POST");
+            conn.setConnectTimeout(3000);
+            conn.setReadTimeout(3000);
+            conn.setDoOutput(true);
+            conn.setRequestProperty("Authorization", "Bearer " + token);
+            conn.setRequestProperty("Content-Type", "application/json; charset=utf-8");
+            byte[] bytes = jsonPayload.getBytes(StandardCharsets.UTF_8);
+            try (OutputStream os = conn.getOutputStream()) {
+                os.write(bytes);
+            }
+            conn.getResponseCode();
+        } catch (Exception ignored) {
+        } finally {
+            if (conn != null) conn.disconnect();
+        }
     }
 }

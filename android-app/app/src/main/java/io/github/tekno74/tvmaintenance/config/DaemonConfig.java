@@ -116,6 +116,9 @@ public final class DaemonConfig {
             if (json.has("enable_home_channel")) {
                 ed.putBoolean("enable_home_channel", json.optBoolean("enable_home_channel", true));
             }
+            if (json.has("knitting_entity_id")) {
+                ed.putString("knitting_entity_id", json.optString("knitting_entity_id", "input_boolean.stickbelysning"));
+            }
             if (json.has("core_apps")) {
                 JSONArray arr = json.getJSONArray("core_apps");
                 Set<String> set = new LinkedHashSet<>();
@@ -209,6 +212,10 @@ public final class DaemonConfig {
 
     public void setHomeChannelEnabled(boolean enabled) {
         prefs.edit().putBoolean("enable_home_channel", enabled).apply();
+    }
+
+    public String getKnittingEntityId() {
+        return prefs.getString("knitting_entity_id", "input_boolean.stickbelysning");
     }
 
     public List<String> getCoreApps() {

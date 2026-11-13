@@ -288,10 +288,13 @@ public final class HomeHudOverlayController {
         if (topBar == null) return;
 
         boolean out = s.isSmillaOut();
-        pillSmilla.setText(out
+        String knitPrefix = s.knittingLightOn ? "🧶 Stickning: PÅ 💡  •  " : "";
+        pillSmilla.setText(knitPrefix + (out
                 ? "🐱 Smilla: UTE (" + s.smillaHoursOut + ")"
-                : "🐱 Smilla: Inne (" + s.smillaHoursOut + " ute)");
-        pillSmilla.setTextColor(out ? Color.parseColor("#FBBF24") : Color.parseColor("#4ADE80"));
+                : "🐱 Smilla: Inne (" + s.smillaHoursOut + " ute)"));
+        pillSmilla.setTextColor(s.knittingLightOn
+                ? Color.parseColor("#FDE047")
+                : (out ? Color.parseColor("#FBBF24") : Color.parseColor("#4ADE80")));
 
         pillElpris.setText(String.format(Locale.US, "⚡ %d öre (%.1f kW)", s.priceOre, s.currentPowerW / 1000.0));
         if (s.priceOre >= 180) {

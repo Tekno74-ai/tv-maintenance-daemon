@@ -36,6 +36,7 @@ public final class MainActivity extends Activity {
 
     private TextView smartHomeText;
     private TextView statusText;
+    private Button btnKnitting;
     private Button btnRunNow;
     private Button btnToggleMode;
     private Button btnToggleHud;
@@ -110,6 +111,15 @@ public final class MainActivity extends Activity {
         buttonRow.setOrientation(LinearLayout.HORIZONTAL);
         buttonRow.setGravity(Gravity.CENTER);
 
+        btnKnitting = createTvButton("🧶 Stickbelysning");
+        btnKnitting.setOnClickListener(v -> {
+            btnKnitting.setText("🧶 Växlar...");
+            new Thread(() -> {
+                SmartHomeData.toggleKnittingLight(getApplicationContext(), config);
+                handler.post(this::refreshStatus);
+            }).start();
+        });
+
         btnRunNow = createTvButton("Run Maintenance Now");
         btnRunNow.setOnClickListener(v -> {
             btnRunNow.setText("Running...");
@@ -146,6 +156,7 @@ public final class MainActivity extends Activity {
         Button btnRefresh = createTvButton("Refresh");
         btnRefresh.setOnClickListener(v -> refreshStatus());
 
+        buttonRow.addView(btnKnitting);
         buttonRow.addView(btnRunNow);
         buttonRow.addView(btnToggleHud);
         buttonRow.addView(btnToggleCards);
@@ -154,7 +165,7 @@ public final class MainActivity extends Activity {
         root.addView(buttonRow);
 
         setContentView(root);
-        btnRunNow.requestFocus();
+        btnKnitting.requestFocus();
     }
 
     @Override
@@ -186,6 +197,9 @@ public final class MainActivity extends Activity {
         Set<String> dirty = dirtyQueue.getDirtyPackages();
 
         StringBuilder hb = new StringBuilder();
+        hb.append("🧶 Stickning   : ")
+                .append(home.knittingLightOn ? "PÅ 💡 (Full stickbelysning aktiv)" : "AV 🌙 (Normal belysning)")
+                .append("  |  Entitet: ").append(config.getKnittingEntityId()).append("\n");
         hb.append("🐱 Smilla      : ").append(home.smillaStatus)
                 .append("  |  Ute idag: ").append(home.smillaHoursOut)
                 .append("  |  Passager: ").append(home.smillaPassages)
@@ -219,6 +233,7 @@ public final class MainActivity extends Activity {
                 .append(HomeAssistantClient.getLastTelemetrySummary(this).replace("\n", "  |  "));
 
         statusText.setText(sb.toString());
+        btnKnitting.setText(home.knittingLightOn ? "🧶 Stickning: PÅ 💡" : "🧶 Stickning: AV 🌙");
         btnToggleHud.setText(config.isHudOverlayEnabled() ? "Top HUD: ON" : "Top HUD: OFF");
         btnToggleCards.setText(config.isHomeChannelEnabled() ? "Bottom Cards: ON" : "Bottom Cards: OFF");
         btnToggleMode.setText(config.isStandaloneMode() ? "Switch to PARALLEL" : "Switch to STANDALONE");

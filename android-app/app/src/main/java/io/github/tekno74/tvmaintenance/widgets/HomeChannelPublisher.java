@@ -17,6 +17,7 @@ import android.util.Log;
 import java.io.OutputStream;
 import java.util.Locale;
 
+import io.github.tekno74.tvmaintenance.ui.KnittingToggleActivity;
 import io.github.tekno74.tvmaintenance.ui.MainActivity;
 
 /**
@@ -36,36 +37,43 @@ public final class HomeChannelPublisher {
             }
             long minuteBucket = System.currentTimeMillis() / 60_000L;
 
+            // Card 0 (First in row!): Lisa's Knitting Light Toggle
+            String knitTitle = snap.knittingLightOn
+                    ? "🧶 Stickbelysning: PÅ 💡 (Klicka för att släcka)"
+                    : "🧶 Stickbelysning: AV 🌙 (Klicka för att tända)";
+            String knitDesc = "Ljusläge 'Stickning' för Lisa i Home Assistant (input_boolean.stickbelysning)";
+            upsertCard(context, channelId, "stickning", 110, knitTitle, knitDesc, minuteBucket, KnittingToggleActivity.class);
+
             // Card 1: Smilla
             String smillaTitle = snap.isSmillaOut()
                     ? "🐱 Smilla: UTE NU (" + snap.smillaHoursOut + " idag)"
                     : "🐱 Smilla: INNE HEMMA (" + snap.smillaHoursOut + " ute idag)";
             String smillaDesc = "Passager idag: " + snap.smillaPassages + " • Kattlucka batteri: " + snap.flapBattery;
-            upsertCard(context, channelId, "smilla", 100, smillaTitle, smillaDesc, minuteBucket);
+            upsertCard(context, channelId, "smilla", 100, smillaTitle, smillaDesc, minuteBucket, MainActivity.class);
 
             // Card 2: Electricity Price & Power
             String elTitle = String.format(Locale.US, "⚡ Elpris: %d öre/kWh (%.2f kW)",
                     snap.priceOre, snap.currentPowerW / 1000.0);
             String elDesc = "Min " + snap.priceMinOre + " • Snitt " + snap.priceAvgOre
                     + " • Max " + snap.priceMaxOre + " öre • Idag: " + snap.dailyCostSek;
-            upsertCard(context, channelId, "elpris", 90, elTitle, elDesc, minuteBucket);
+            upsertCard(context, channelId, "elpris", 90, elTitle, elDesc, minuteBucket, MainActivity.class);
 
             // Card 3: Climate Indoor & Outdoor
             String klimTitle = "🌡️ Inne: " + snap.indoorTempC + " °C  •  Ute: " + snap.outdoorTempC + " °C";
             String klimDesc = "Övre hall: " + snap.upperHallTempC + " °C";
-            upsertCard(context, channelId, "klimat", 80, klimTitle, klimDesc, minuteBucket);
+            upsertCard(context, channelId, "klimat", 80, klimTitle, klimDesc, minuteBucket, MainActivity.class);
 
             // Card 4: Water Heater (IVT)
             String vvTitle = "🚿 Varmvatten: " + snap.waterTempC + " °C (" + snap.waterVolume40cL + " L 40°C)";
             String vvDesc = "Mål: " + snap.waterTargetC + " °C • Status: " + snap.waterStatus;
-            upsertCard(context, channelId, "varmvatten", 70, vvTitle, vvDesc, minuteBucket);
+            upsertCard(context, channelId, "varmvatten", 70, vvTitle, vvDesc, minuteBucket, MainActivity.class);
 
             // Card 5: Internet & UniFi UCG Max
             String netTitle = String.format(Locale.US, "🌐 Internet: ↓ %.1f Mbit/s • UCG %s",
                     snap.tvDownMbps, snap.ucgState);
             String netDesc = "Gateway CPU: " + snap.ucgCpuPct + " • Wi-Fi: " + snap.wifiClients
                     + " enheter • NAS: " + snap.nasDownKbps;
-            upsertCard(context, channelId, "internet", 60, netTitle, netDesc, minuteBucket);
+            upsertCard(context, channelId, "internet", 60, netTitle, netDesc, minuteBucket, MainActivity.class);
 
         } catch (Exception e) {
             Log.w(TAG, "Could not sync Home Screen Channel: " + e.getMessage());
@@ -147,7 +155,8 @@ public final class HomeChannelPublisher {
             int weight,
             String title,
             String desc,
-            long minuteBucket
+            long minuteBucket,
+            Class<?> targetActivity
     ) {
         ContentResolver resolver = context.getContentResolver();
         long programId = -1;
@@ -165,7 +174,7 @@ public final class HomeChannelPublisher {
         } catch (Exception ignored) {
         }
 
-        Intent clickIntent = new Intent(context, MainActivity.class);
+        Intent clickIntent = new Intent(context, targetActivity);
         clickIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
 
         String artUri = "content://" + WidgetCardProvider.AUTHORITY + "/" + cardKey + ".png?t=" + minuteBucket;
