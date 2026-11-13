@@ -5,6 +5,7 @@ import android.content.ContentValues;
 import android.content.Context;
 import android.database.Cursor;
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.LinearGradient;
@@ -19,6 +20,8 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.util.Locale;
+
+import io.github.tekno74.tvmaintenance.R;
 
 /**
  * Module 7b (widgets): ContentProvider that dynamically renders 16:9 graphical poster cards (640x360 PNG)
@@ -42,7 +45,7 @@ public final class WidgetCardProvider extends ContentProvider {
         String cardType = segment.replace(".png", "").toLowerCase(Locale.ROOT);
 
         SmartHomeData.Snapshot snap = SmartHomeData.loadCached(ctx);
-        Bitmap bmp = renderCardBitmap(cardType, snap);
+        Bitmap bmp = renderCardBitmap(ctx, cardType, snap);
 
         File outDir = new File(ctx.getCacheDir(), "cards");
         //noinspection ResultOfMethodCallIgnored
@@ -58,7 +61,7 @@ public final class WidgetCardProvider extends ContentProvider {
         return ParcelFileDescriptor.open(outFile, ParcelFileDescriptor.MODE_READ_ONLY);
     }
 
-    private static Bitmap renderCardBitmap(String cardType, SmartHomeData.Snapshot s) {
+    private static Bitmap renderCardBitmap(Context ctx, String cardType, SmartHomeData.Snapshot s) {
         int w = 640;
         int h = 360;
         Bitmap bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
@@ -154,13 +157,25 @@ public final class WidgetCardProvider extends ContentProvider {
         // Badge pill
         Paint pillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         pillPaint.setColor(Color.argb(45, Color.red(accentColor), Color.green(accentColor), Color.blue(accentColor)));
-        c.drawRoundRect(newRect(36, 36, w - 36, 86), 14f, 14f, pillPaint);
+        c.drawRoundRect(newRect(36, 36, w - 130, 86), 14f, 14f, pillPaint);
 
         Paint badgeText = new Paint(Paint.ANTI_ALIAS_FLAG);
         badgeText.setColor(accentColor);
-        badgeText.setTextSize(22f);
+        badgeText.setTextSize(21f);
         badgeText.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.BOLD));
         c.drawText(badge, 54, 69, badgeText);
+
+        // Draw Wahren Coat of Arms in top-right corner of card
+        try {
+            Bitmap crest = BitmapFactory.decodeResource(ctx.getResources(), R.drawable.wahren_crest);
+            if (crest != null) {
+                RectF crestDst = newRect(w - 110, 26, w - 34, 128);
+                Paint bmpPaint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
+                c.drawBitmap(crest, null, crestDst, bmpPaint);
+                crest.recycle();
+            }
+        } catch (Exception ignored) {
+        }
 
         // Main Headline
         Paint headText = new Paint(Paint.ANTI_ALIAS_FLAG);

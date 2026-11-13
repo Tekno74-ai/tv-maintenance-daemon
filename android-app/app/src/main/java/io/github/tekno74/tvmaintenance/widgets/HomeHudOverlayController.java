@@ -15,12 +15,14 @@ import android.util.Log;
 import android.view.Gravity;
 import android.view.View;
 import android.view.WindowManager;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 
 import java.util.Locale;
 
+import io.github.tekno74.tvmaintenance.R;
 import io.github.tekno74.tvmaintenance.config.DaemonConfig;
 import io.github.tekno74.tvmaintenance.engine.SafetyInvariants;
 
@@ -153,6 +155,14 @@ public final class HomeHudOverlayController {
         pillVarmvatten = createPillView();
         pillInternet = createPillView();
 
+        ImageView topCrest = new ImageView(context);
+        topCrest.setImageResource(R.drawable.wahren_crest);
+        topCrest.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        LinearLayout.LayoutParams crestLp = new LinearLayout.LayoutParams(30, 40);
+        crestLp.setMargins(4, 0, 10, 0);
+        topCrest.setLayoutParams(crestLp);
+        topBar.addView(topCrest);
+
         topBar.addView(pillSmilla);
         topBar.addView(createDivider());
         topBar.addView(pillElpris);
@@ -192,6 +202,14 @@ public final class HomeHudOverlayController {
         cardKlimat = createCardView();
         cardVarmvatten = createCardView();
         cardInternet = createCardView();
+
+        ImageView rowCrest = new ImageView(context);
+        rowCrest.setImageResource(R.drawable.wahren_crest);
+        rowCrest.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        LinearLayout.LayoutParams rowCrestLp = new LinearLayout.LayoutParams(92, 124);
+        rowCrestLp.setMargins(0, 0, 14, 0);
+        rowCrest.setLayoutParams(rowCrestLp);
+        bottomCardsRow.addView(rowCrest);
 
         bottomCardsRow.addView(cardSmilla.container);
         bottomCardsRow.addView(cardElpris.container);

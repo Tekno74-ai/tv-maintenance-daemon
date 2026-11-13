@@ -10,12 +10,14 @@ import android.os.Handler;
 import android.os.Looper;
 import android.view.Gravity;
 import android.widget.Button;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import java.util.Locale;
 import java.util.Set;
 
+import io.github.tekno74.tvmaintenance.R;
 import io.github.tekno74.tvmaintenance.adb.AdbSessionGuard;
 import io.github.tekno74.tvmaintenance.config.DaemonConfig;
 import io.github.tekno74.tvmaintenance.events.DirtyPackageQueue;
@@ -57,19 +59,38 @@ public final class MainActivity extends Activity {
         root.setPadding(64, 40, 64, 40);
         root.setGravity(Gravity.CENTER_HORIZONTAL);
 
+        LinearLayout headerRow = new LinearLayout(this);
+        headerRow.setOrientation(LinearLayout.HORIZONTAL);
+        headerRow.setGravity(Gravity.CENTER);
+        headerRow.setPadding(0, 0, 0, 18);
+
+        ImageView crestView = new ImageView(this);
+        crestView.setImageResource(R.drawable.wahren_crest);
+        crestView.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        LinearLayout.LayoutParams crestLp = new LinearLayout.LayoutParams(54, 72);
+        crestLp.setMargins(0, 0, 20, 0);
+        crestView.setLayoutParams(crestLp);
+        headerRow.addView(crestView);
+
+        LinearLayout titleCol = new LinearLayout(this);
+        titleCol.setOrientation(LinearLayout.VERTICAL);
+
         TextView title = new TextView(this);
         title.setText("Villa Wahren Live & TV Optimizer v3.0");
         title.setTextColor(Color.parseColor("#38BDF8"));
         title.setTextSize(24f);
         title.setTypeface(Typeface.DEFAULT_BOLD);
-        root.addView(title);
+        titleCol.addView(title);
 
         TextView subtitle = new TextView(this);
         subtitle.setText("Smart Home Live Widgets + Event-Driven Standby Maintenance (Zero Network Ports)");
         subtitle.setTextColor(Color.parseColor("#94A3B8"));
         subtitle.setTextSize(13.5f);
-        subtitle.setPadding(0, 4, 0, 20);
-        root.addView(subtitle);
+        subtitle.setPadding(0, 4, 0, 0);
+        titleCol.addView(subtitle);
+
+        headerRow.addView(titleCol);
+        root.addView(headerRow);
 
         // Smart Home Live Card
         smartHomeText = new TextView(this);

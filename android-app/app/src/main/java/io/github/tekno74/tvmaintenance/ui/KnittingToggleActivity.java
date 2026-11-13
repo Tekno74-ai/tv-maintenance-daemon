@@ -10,11 +10,13 @@ import android.os.Handler;
 import android.os.Looper;
 import android.view.Gravity;
 import android.view.KeyEvent;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import java.util.concurrent.Executors;
 
+import io.github.tekno74.tvmaintenance.R;
 import io.github.tekno74.tvmaintenance.config.DaemonConfig;
 import io.github.tekno74.tvmaintenance.events.WatcherService;
 import io.github.tekno74.tvmaintenance.widgets.SmartHomeData;
@@ -50,6 +52,14 @@ public final class KnittingToggleActivity extends Activity {
         cardBg.setCornerRadius(28f);
         cardBg.setStroke(4, Color.parseColor("#F59E0B"));
         card.setBackground(cardBg);
+
+        ImageView crest = new ImageView(this);
+        crest.setImageResource(R.drawable.wahren_crest);
+        crest.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        LinearLayout.LayoutParams crestLp = new LinearLayout.LayoutParams(66, 90);
+        crestLp.setMargins(0, 0, 0, 14);
+        crest.setLayoutParams(crestLp);
+        card.addView(crest);
 
         stateTitle = new TextView(this);
         stateTitle.setText("🧶 Ljusläge: Stickning...");

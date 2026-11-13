@@ -7,9 +7,11 @@ import android.content.Context;
 import android.content.Intent;
 import android.database.Cursor;
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
+import android.graphics.RectF;
 import android.media.tv.TvContract;
 import android.net.Uri;
 import android.util.Log;
@@ -17,6 +19,7 @@ import android.util.Log;
 import java.io.OutputStream;
 import java.util.Locale;
 
+import io.github.tekno74.tvmaintenance.R;
 import io.github.tekno74.tvmaintenance.ui.KnittingToggleActivity;
 import io.github.tekno74.tvmaintenance.ui.MainActivity;
 
@@ -128,16 +131,17 @@ public final class HomeChannelPublisher {
 
     private static void writeChannelLogo(Context context, long channelId) {
         Uri logoUri = TvContract.buildChannelLogoUri(channelId);
-        Bitmap bmp = Bitmap.createBitmap(80, 80, Bitmap.Config.ARGB_8888);
+        Bitmap bmp = Bitmap.createBitmap(120, 120, Bitmap.Config.ARGB_8888);
         Canvas canvas = new Canvas(bmp);
-        Paint bg = new Paint(Paint.ANTI_ALIAS_FLAG);
-        bg.setColor(Color.parseColor("#0F172A"));
-        canvas.drawCircle(40, 40, 38, bg);
-        Paint fg = new Paint(Paint.ANTI_ALIAS_FLAG);
-        fg.setColor(Color.parseColor("#38BDF8"));
-        fg.setTextSize(34f);
-        fg.setTextAlign(Paint.Align.CENTER);
-        canvas.drawText("⚡", 40, 52, fg);
+        try {
+            Bitmap crest = BitmapFactory.decodeResource(context.getResources(), R.drawable.wahren_crest);
+            if (crest != null) {
+                Paint p = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
+                canvas.drawBitmap(crest, null, new RectF(16, 4, 104, 116), p);
+                crest.recycle();
+            }
+        } catch (Exception ignored) {
+        }
         try (OutputStream os = context.getContentResolver().openOutputStream(logoUri)) {
             if (os != null) {
                 bmp.compress(Bitmap.CompressFormat.PNG, 100, os);
