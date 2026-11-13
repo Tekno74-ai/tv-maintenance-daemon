@@ -104,6 +104,18 @@ public final class DaemonConfig {
             if (json.has("ha_webhook_url")) {
                 ed.putString("ha_webhook_url", json.optString("ha_webhook_url", ""));
             }
+            if (json.has("ha_url")) {
+                ed.putString("ha_url", json.optString("ha_url", "http://192.168.0.17:8123"));
+            }
+            if (json.has("ha_token")) {
+                ed.putString("ha_token", json.optString("ha_token", ""));
+            }
+            if (json.has("enable_hud_overlay")) {
+                ed.putBoolean("enable_hud_overlay", json.optBoolean("enable_hud_overlay", true));
+            }
+            if (json.has("enable_home_channel")) {
+                ed.putBoolean("enable_home_channel", json.optBoolean("enable_home_channel", true));
+            }
             if (json.has("core_apps")) {
                 JSONArray arr = json.getJSONArray("core_apps");
                 Set<String> set = new LinkedHashSet<>();
@@ -173,6 +185,30 @@ public final class DaemonConfig {
 
     public String getHaWebhookUrl() {
         return prefs.getString("ha_webhook_url", "");
+    }
+
+    public String getHaUrl() {
+        return prefs.getString("ha_url", "http://192.168.0.17:8123");
+    }
+
+    public String getHaToken() {
+        return prefs.getString("ha_token", "");
+    }
+
+    public boolean isHudOverlayEnabled() {
+        return prefs.getBoolean("enable_hud_overlay", true);
+    }
+
+    public void setHudOverlayEnabled(boolean enabled) {
+        prefs.edit().putBoolean("enable_hud_overlay", enabled).apply();
+    }
+
+    public boolean isHomeChannelEnabled() {
+        return prefs.getBoolean("enable_home_channel", true);
+    }
+
+    public void setHomeChannelEnabled(boolean enabled) {
+        prefs.edit().putBoolean("enable_home_channel", enabled).apply();
     }
 
     public List<String> getCoreApps() {

@@ -25,6 +25,9 @@ import io.github.tekno74.tvmaintenance.config.DaemonConfig;
 import io.github.tekno74.tvmaintenance.engine.MaintenanceEngine;
 import io.github.tekno74.tvmaintenance.telemetry.HomeAssistantClient;
 import io.github.tekno74.tvmaintenance.telemetry.MetricsCollector;
+import io.github.tekno74.tvmaintenance.widgets.HomeChannelPublisher;
+import io.github.tekno74.tvmaintenance.widgets.HomeHudOverlayController;
+import io.github.tekno74.tvmaintenance.widgets.SmartHomeData;
 
 /**
  * Module 4b (events): Event-driven background service that listens to OS broadcasts:
@@ -40,13 +43,17 @@ public final class WatcherService extends Service {
 
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
+    private final ExecutorService widgetWorker = Executors.newSingleThreadExecutor();
     private final AtomicBoolean abortRequested = new AtomicBoolean(false);
 
     private DaemonConfig config;
     private DirtyPackageQueue dirtyQueue;
+    private HomeHudOverlayController hudOverlay;
     private PowerManager.WakeLock standbyWakeLock;
     private WifiManager.WifiLock standbyWifiLock;
     private Runnable pendingScreenOffTask;
+    private Runnable widgetTickTask;
+    private long lastChannelSyncMs = 0L;
     private boolean receiversRegistered = false;
 
     private final BroadcastReceiver screenReceiver = new BroadcastReceiver() {
@@ -85,8 +92,45 @@ public final class WatcherService extends Service {
         ensureForeground();
         config = new DaemonConfig(this);
         dirtyQueue = new DirtyPackageQueue(this);
+        hudOverlay = new HomeHudOverlayController(this, config);
         registerDynamicReceivers();
+        startWidgetLoop();
         Log.i(TAG, "WatcherService started in mode=" + config.getMode());
+    }
+
+    private void startWidgetLoop() {
+        stopWidgetLoop();
+        widgetTickTask = new Runnable() {
+            @Override
+            public void run() {
+                PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+                if (pm != null && !pm.isInteractive()) {
+                    hudOverlay.hideOverlay();
+                    return;
+                }
+                widgetWorker.execute(() -> {
+                    SmartHomeData.Snapshot snap = SmartHomeData.refresh(getApplicationContext(), config);
+                    hudOverlay.updateOnMainThread(snap);
+                    long now = System.currentTimeMillis();
+                    if (config.isHomeChannelEnabled() && (now - lastChannelSyncMs) >= 60_000L) {
+                        lastChannelSyncMs = now;
+                        HomeChannelPublisher.syncChannelAndCards(getApplicationContext(), snap);
+                    }
+                });
+                mainHandler.postDelayed(this, 3000L);
+            }
+        };
+        mainHandler.post(widgetTickTask);
+    }
+
+    private void stopWidgetLoop() {
+        if (widgetTickTask != null) {
+            mainHandler.removeCallbacks(widgetTickTask);
+            widgetTickTask = null;
+        }
+        if (hudOverlay != null) {
+            hudOverlay.hideOverlay();
+        }
     }
 
     private void ensureForeground() {
@@ -148,6 +192,7 @@ public final class WatcherService extends Service {
             pendingScreenOffTask = null;
         }
         releaseLocks();
+        startWidgetLoop();
         worker.execute(() -> {
             MetricsCollector.SystemSnapshot snap = MetricsCollector.collect(getApplicationContext());
             HomeAssistantClient.publishStatus(
@@ -164,6 +209,7 @@ public final class WatcherService extends Service {
     }
 
     private void handleScreenOff() {
+        stopWidgetLoop();
         config.syncFromExternalJsonIfPresent();
         int debounceSec = config.getScreenOffDebounceSeconds();
         Log.i(TAG, "ACTION_SCREEN_OFF detected: acquiring PARTIAL_WAKE_LOCK and waiting " + debounceSec + "s debounce...");
@@ -234,6 +280,10 @@ public final class WatcherService extends Service {
 
     @Override
     public void onDestroy() {
+        stopWidgetLoop();
+        if (hudOverlay != null) {
+            hudOverlay.destroy();
+        }
         if (receiversRegistered) {
             try {
                 unregisterReceiver(screenReceiver);
