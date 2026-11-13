@@ -1,0 +1,3 @@
+-keep class io.github.tekno74.tvmaintenance.events.SystemEventReceiver { <init>(); }
+-keep class io.github.tekno74.tvmaintenance.events.WatcherService { <init>(); }
+-keep class io.github.tekno74.tvmaintenance.ui.MainActivity { <init>(); }

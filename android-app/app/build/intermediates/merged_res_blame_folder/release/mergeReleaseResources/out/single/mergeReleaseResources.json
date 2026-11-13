@@ -1,0 +1,14 @@
+[
+    {
+        "merged": "io.github.tekno74.tvmaintenance.app-release-4:/xml_module_card.xml.flat",
+        "source": "io.github.tekno74.tvmaintenance.app-main-5:/xml/module_card.xml"
+    },
+    {
+        "merged": "io.github.tekno74.tvmaintenance.app-release-4:/drawable_icon.xml.flat",
+        "source": "io.github.tekno74.tvmaintenance.app-main-5:/drawable/icon.xml"
+    },
+    {
+        "merged": "io.github.tekno74.tvmaintenance.app-release-4:/drawable_banner.xml.flat",
+        "source": "io.github.tekno74.tvmaintenance.app-main-5:/drawable/banner.xml"
+    }
+]

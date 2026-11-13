@@ -1,0 +1,30 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'io.github.tekno74.tvmaintenance'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'io.github.tekno74.tvmaintenance'
+        minSdk 28
+        targetSdk 34
+        versionCode 1
+        versionName '3.0.0-parallel'
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            // Sideloaded over ADB; signed with debug key for deterministic updates.
+            signingConfig signingConfigs.debug
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}

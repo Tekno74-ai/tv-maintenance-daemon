@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- Required for Home Assistant telemetry webhook & loopback 127.0.0.1:5555 socket -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Keeps CPU awake for 5-15s after ACTION_SCREEN_OFF while screen remains 100% black -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- Keeps WatcherService alive across Android 12+ background limits (100% invisible on Android TV) -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <!-- Auto-starts WatcherService after cold boot / power outage -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- Granted once via ADB (pm grant): enables ephemeral loopback ADB & 0.5x animation scales -->
+    <uses-permission
+        android:name="android.permission.WRITE_SECURE_SETTINGS"
+        tools:ignore="ProtectedPermissions" />
+
+    <uses-feature
+        android:name="android.software.leanback"
+        android:required="false" />
+    <uses-feature
+        android:name="android.hardware.touchscreen"
+        android:required="false" />
+
+    <application
+        android:allowBackup="false"
+        android:banner="@drawable/banner"
+        android:icon="@drawable/icon"
+        android:label="@string/app_name"
+        android:supportsRtl="false"
+        android:usesCleartextTraffic="true"
+        android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
+
+        <activity
+            android:name=".ui.MainActivity"
+            android:exported="true"
+            android:screenOrientation="landscape">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- CleanYourTV Module Card (Spec 1) -->
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="com.gathin.tvhome.category.DOCK_CARD" />
+            </intent-filter>
+            <meta-data
+                android:name="com.gathin.tvhome.card"
+                android:resource="@xml/module_card" />
+        </activity>
+
+        <service
+            android:name=".events.WatcherService"
+            android:enabled="true"
+            android:exported="false" />
+
+        <receiver
+            android:name=".events.SystemEventReceiver"
+            android:enabled="true"
+            android:exported="true"
+            android:permission="android.permission.WRITE_SECURE_SETTINGS">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="io.github.tekno74.tvmaintenance.ACTION_RUN_NOW" />
+            </intent-filter>
+        </receiver>
+
+    </application>
+</manifest>

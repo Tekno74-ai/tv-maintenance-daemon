@@ -1,0 +1,6 @@
+R_DEF: Internal format may change without notice
+local
+drawable banner
+drawable icon
+string app_name
+xml module_card
