@@ -158,6 +158,7 @@ Publishes atomic, clean JSON status metrics including **True Available Memory** 
 
 ## 🤝 Community & Upstream References
 
+* **On-Device Android TV App Roadmap (v3.0):** [docs/ON_DEVICE_ARCHITECTURE.md](docs/ON_DEVICE_ARCHITECTURE.md) — Event-driven native Android TV companion (`ACTION_SCREEN_OFF` + `WRITE_SECURE_SETTINGS` ephemeral loopback ADB) requiring zero open network ports.
 * Community debloat profiles and model knowledge: [CleanYourTV (Gathin23/cleanyourtv)](https://github.com/Gathin23/cleanyourtv)
 * Recommended lightweight launcher: [Projectivy Launcher](https://github.com/spocky/projectivy-launcher)
 
