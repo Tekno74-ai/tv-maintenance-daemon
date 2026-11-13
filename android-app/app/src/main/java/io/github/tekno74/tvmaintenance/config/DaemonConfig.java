@@ -111,7 +111,7 @@ public final class DaemonConfig {
                 ed.putString("ha_token", json.optString("ha_token", ""));
             }
             if (json.has("enable_hud_overlay")) {
-                ed.putBoolean("enable_hud_overlay", json.optBoolean("enable_hud_overlay", true));
+                ed.putBoolean("enable_hud_overlay", json.optBoolean("enable_hud_overlay", false));
             }
             if (json.has("enable_home_channel")) {
                 ed.putBoolean("enable_home_channel", json.optBoolean("enable_home_channel", true));
@@ -199,7 +199,7 @@ public final class DaemonConfig {
     }
 
     public boolean isHudOverlayEnabled() {
-        return prefs.getBoolean("enable_hud_overlay", true);
+        return prefs.getBoolean("enable_hud_overlay", false);
     }
 
     public void setHudOverlayEnabled(boolean enabled) {

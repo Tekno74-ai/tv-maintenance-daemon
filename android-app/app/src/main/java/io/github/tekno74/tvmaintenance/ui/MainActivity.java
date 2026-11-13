@@ -153,13 +153,13 @@ public final class MainActivity extends Activity {
             }, 4000);
         });
 
-        btnToggleHud = createTvButton("Top HUD Bar");
+        btnToggleHud = createTvButton("Compact Pill Bar");
         btnToggleHud.setOnClickListener(v -> {
             config.setHudOverlayEnabled(!config.isHudOverlayEnabled());
             refreshStatus();
         });
 
-        btnToggleCards = createTvButton("Bottom Cards");
+        btnToggleCards = createTvButton("Widget Cards");
         btnToggleCards.setOnClickListener(v -> {
             config.setHomeChannelEnabled(!config.isHomeChannelEnabled());
             refreshStatus();
@@ -244,9 +244,9 @@ public final class MainActivity extends Activity {
 
         StringBuilder sb = new StringBuilder();
         sb.append("Operating Mode       : ").append(modeDesc).append("\n");
-        sb.append("Home Screen Widgets  : Bottom 5-Card Row = ")
+        sb.append("Home Screen Widgets  : Upper 5-Card Row = ")
                 .append(config.isHomeChannelEnabled() ? "ON" : "OFF")
-                .append("  |  Top HUD Bar = ")
+                .append("  |  Compact Pill Bar = ")
                 .append(config.isHudOverlayEnabled() ? "ON" : "OFF").append("\n");
         sb.append("WRITE_SECURE_SETTINGS: ").append(hasPerm ? "GRANTED (Ready)" : "MISSING").append("  |  ")
                 .append(MetricsCollector.formatSummary(snap)).append("\n");
@@ -255,8 +255,8 @@ public final class MainActivity extends Activity {
 
         statusText.setText(sb.toString());
         btnKnitting.setText(home.knittingLightOn ? "🧶 Stickning: PÅ 💡" : "🧶 Stickning: AV 🌙");
-        btnToggleHud.setText(config.isHudOverlayEnabled() ? "Top HUD: ON" : "Top HUD: OFF");
-        btnToggleCards.setText(config.isHomeChannelEnabled() ? "Bottom Cards: ON" : "Bottom Cards: OFF");
+        btnToggleHud.setText(config.isHudOverlayEnabled() ? "Compact Bar: ON" : "Compact Bar: OFF");
+        btnToggleCards.setText(config.isHomeChannelEnabled() ? "Widget Cards: ON" : "Widget Cards: OFF");
         btnToggleMode.setText(config.isStandaloneMode() ? "Switch to PARALLEL" : "Switch to STANDALONE");
     }
 }
