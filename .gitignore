@@ -27,3 +27,7 @@ Thumbs.db
 # Docker data
 data/
 logs/
+
+android-app/.gradle/
+android-app/app/build/
+android-app/local.properties

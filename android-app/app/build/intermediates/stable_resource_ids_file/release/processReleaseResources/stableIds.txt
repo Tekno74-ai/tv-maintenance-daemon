@@ -1,4 +1,0 @@
-io.github.tekno74.tvmaintenance:string/app_name = 0x7f020000
-io.github.tekno74.tvmaintenance:drawable/icon = 0x7f010001
-io.github.tekno74.tvmaintenance:xml/module_card = 0x7f030000
-io.github.tekno74.tvmaintenance:drawable/banner = 0x7f010000

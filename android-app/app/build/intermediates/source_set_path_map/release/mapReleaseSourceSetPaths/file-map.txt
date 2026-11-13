@@ -1,7 +1,0 @@
-io.github.tekno74.tvmaintenance.app-pngs-0 C:\Users\marcu\antigravity\tv-maintenance-daemon\android-app\app\build\generated\res\pngs\release
-io.github.tekno74.tvmaintenance.app-resValues-1 C:\Users\marcu\antigravity\tv-maintenance-daemon\android-app\app\build\generated\res\resValues\release
-io.github.tekno74.tvmaintenance.app-packageReleaseResources-2 C:\Users\marcu\antigravity\tv-maintenance-daemon\android-app\app\build\intermediates\incremental\release\packageReleaseResources\merged.dir
-io.github.tekno74.tvmaintenance.app-packageReleaseResources-3 C:\Users\marcu\antigravity\tv-maintenance-daemon\android-app\app\build\intermediates\incremental\release\packageReleaseResources\stripped.dir
-io.github.tekno74.tvmaintenance.app-release-4 C:\Users\marcu\antigravity\tv-maintenance-daemon\android-app\app\build\intermediates\merged_res\release\mergeReleaseResources
-io.github.tekno74.tvmaintenance.app-main-5 C:\Users\marcu\antigravity\tv-maintenance-daemon\android-app\app\src\main\res
-io.github.tekno74.tvmaintenance.app-release-6 C:\Users\marcu\antigravity\tv-maintenance-daemon\android-app\app\src\release\res
