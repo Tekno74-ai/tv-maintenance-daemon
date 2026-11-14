@@ -76,7 +76,7 @@ public final class MainActivity extends Activity {
         titleCol.setOrientation(LinearLayout.VERTICAL);
 
         TextView title = new TextView(this);
-        title.setText("Villa Wahren Live & TV Optimizer v3.0");
+        title.setText("TV Optimizer v3.0 — Villa Wahren Live");
         title.setTextColor(Color.parseColor("#38BDF8"));
         title.setTextSize(24f);
         title.setTypeface(Typeface.DEFAULT_BOLD);
