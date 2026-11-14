@@ -234,8 +234,8 @@ public final class MainActivity extends Activity {
         hb.append("🚿 Varmvatten  : ").append(home.waterTempC).append(" °C (Mål ").append(home.waterTargetC)
                 .append(" °C)  |  40°C-volym: ").append(home.waterVolume40cL).append(" L  |  ").append(home.waterStatus).append("\n");
         hb.append(String.format(Locale.US,
-                "🌐 Internet    : TV ↓ %.1f Mbit/s ↑ %.1f Mbit/s  |  UCG Max: %s (CPU %s)  |  Wi-Fi: %d enheter  |  NAS: %s",
-                home.tvDownMbps, home.tvUpMbps, home.ucgState, home.ucgCpuPct, home.wifiClients, home.nasDownKbps));
+                "🌐 Internet    : WAN ↓ %.1f Mbit/s ↑ %.1f Mbit/s (Ping %d ms)  |  Wi-Fi: %d klienter  |  UCG Max: %s (CPU %s)",
+                home.tvDownMbps, home.tvUpMbps, home.wanLatencyMs, home.wifiClients, home.ucgState, home.ucgCpuPct));
         smartHomeText.setText(hb.toString());
 
         String modeDesc = config.isStandaloneMode()

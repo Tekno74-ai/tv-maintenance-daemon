@@ -27,9 +27,9 @@ import io.github.tekno74.tvmaintenance.config.DaemonConfig;
 import io.github.tekno74.tvmaintenance.engine.SafetyInvariants;
 
 /**
- * Module 7d (widgets): Renders the "Villa Wahren Live" widget strip in the empty upper hero area
- * of the Projectivy Home screen (y = 148..330, right above "TV-appar" and below the top-right clock),
- * with explicit pixel bounds so Android's ViewRootImpl never wraps or distorts the layout.
+ * Module 7d (widgets): Renders the compact "Villa Wahren Live" widget strip at the top-left
+ * of the Projectivy Home screen (x = 76..1436, y = 34..154, vertical center y = 94),
+ * aligned directly to the left of Projectivy's [Ethernet][Settings][21:40] clock bar (x = 1463..1808, y = 54..134).
  */
 public final class HomeHudOverlayController {
     private static final String TAG = "TvMaintHudOverlay";
@@ -39,7 +39,7 @@ public final class HomeHudOverlayController {
     private final WindowManager windowManager;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
-    // Style A (Default): Upper 5-Card Dashboard Row with Wahren Coat of Arms (y = 148, above TV-appar)
+    // Style A (Default): Compact Top-Left 5-Card Row with Wahren Coat of Arms (left of 21:40 clock)
     private LinearLayout cardsRow;
     private CardViews cardSmilla;
     private CardViews cardElpris;
@@ -48,7 +48,7 @@ public final class HomeHudOverlayController {
     private CardViews cardInternet;
     private boolean cardsAdded = false;
 
-    // Style B (Optional compact mode): Single-line Top-Left Pill Bar (x = 76, y = 44, left of 23:50 clock)
+    // Style B (Optional single-line pill mode)
     private LinearLayout topBar;
     private TextView pillSmilla;
     private TextView pillElpris;
@@ -102,7 +102,6 @@ public final class HomeHudOverlayController {
                 boolean isLauncherPkg = lastKnownForegroundPkg.equals(launcherPkg)
                         || "com.spocky.projengmenu".equals(lastKnownForegroundPkg)
                         || "com.gathin.tvhome".equals(lastKnownForegroundPkg);
-                // Hide if Projectivy's side-panel drawer (Settings / All Apps) is open
                 boolean isSidePanel = lastKnownForegroundClass != null
                         && lastKnownForegroundClass.toLowerCase(Locale.ROOT).contains("sidepanel");
 
@@ -111,7 +110,7 @@ public final class HomeHudOverlayController {
                     return;
                 }
 
-                // 1. Upper 5-Card Dashboard Row (placed at y=148 in the empty upper space above "TV-appar")
+                // 1. Compact 5-Card Dashboard Row (left of the 21:40 clock at the same height)
                 if (config.isHomeChannelEnabled()) {
                     ensureCardsRowCreated();
                     bindCardsRow(snap);
@@ -122,7 +121,7 @@ public final class HomeHudOverlayController {
                     cardsRow.setVisibility(View.GONE);
                 }
 
-                // 2. Optional Compact Top-Left Pill Bar (only if explicitly enabled alongside or instead of cards)
+                // 2. Optional Single-Line Pill Bar
                 if (config.isHudOverlayEnabled()) {
                     ensureTopBarCreated();
                     bindTopBar(snap);
@@ -144,14 +143,14 @@ public final class HomeHudOverlayController {
         cardsRow = new LinearLayout(context);
         cardsRow.setOrientation(LinearLayout.HORIZONTAL);
         cardsRow.setGravity(Gravity.CENTER_VERTICAL);
-        cardsRow.setPadding(12, 8, 12, 8);
+        cardsRow.setPadding(4, 4, 4, 4);
 
         ImageView rowCrest = new ImageView(context);
         rowCrest.setImageResource(R.drawable.wahren_crest);
         rowCrest.setScaleType(ImageView.ScaleType.FIT_CENTER);
         rowCrest.setAdjustViewBounds(true);
-        LinearLayout.LayoutParams rowCrestLp = new LinearLayout.LayoutParams(104, 142);
-        rowCrestLp.setMargins(0, 0, 18, 0);
+        LinearLayout.LayoutParams rowCrestLp = new LinearLayout.LayoutParams(74, 100);
+        rowCrestLp.setMargins(0, 0, 12, 0);
         rowCrest.setLayoutParams(rowCrestLp);
         cardsRow.addView(rowCrest);
 
@@ -167,9 +166,10 @@ public final class HomeHudOverlayController {
         cardsRow.addView(cardVarmvatten.container);
         cardsRow.addView(cardInternet.container);
 
-        // Explicit pixel width (1780px) prevents Android ViewRootImpl from capping WRAP_CONTENT to 880px!
+        // Placed at x=76, y=34, width=1360 -> spans [76..1436, 34..154], centered vertically at y=94
+        // right to the left of Projectivy's [Ethernet][Settings][21:40] clock at [1463..1808, 54..134]!
         WindowManager.LayoutParams lp = new WindowManager.LayoutParams(
-                1780,
+                1360,
                 WindowManager.LayoutParams.WRAP_CONTENT,
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
@@ -177,9 +177,9 @@ public final class HomeHudOverlayController {
                         | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
                 PixelFormat.TRANSLUCENT
         );
-        lp.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
-        // y = 148 sits cleanly below Projectivy's 23:50 clock (y=40..125) and above "TV-appar" (y=395+)
-        lp.y = 148;
+        lp.gravity = Gravity.TOP | Gravity.START;
+        lp.x = 76;
+        lp.y = 34;
 
         windowManager.addView(cardsRow, lp);
         cardsAdded = true;
@@ -224,7 +224,6 @@ public final class HomeHudOverlayController {
         topBar.addView(createDivider());
         topBar.addView(pillInternet);
 
-        // Explicit width or unconstrained layout at top-left (left of the 23:50 clock)
         WindowManager.LayoutParams lp = new WindowManager.LayoutParams(
                 1280,
                 64,
@@ -236,7 +235,7 @@ public final class HomeHudOverlayController {
         );
         lp.gravity = Gravity.TOP | Gravity.START;
         lp.x = 76;
-        lp.y = 48;
+        lp.y = 62;
 
         windowManager.addView(topBar, lp);
         topBarAdded = true;
@@ -245,29 +244,29 @@ public final class HomeHudOverlayController {
     private CardViews createCardView() {
         LinearLayout card = new LinearLayout(context);
         card.setOrientation(LinearLayout.VERTICAL);
-        card.setPadding(20, 14, 20, 14);
+        card.setPadding(14, 9, 14, 9);
 
         GradientDrawable bg = new GradientDrawable(
                 GradientDrawable.Orientation.TOP_BOTTOM,
                 new int[]{Color.argb(225, 15, 23, 42), Color.argb(235, 30, 41, 59)}
         );
-        bg.setCornerRadius(16f);
+        bg.setCornerRadius(13f);
         bg.setStroke(2, Color.argb(150, 51, 65, 85));
         card.setBackground(bg);
 
-        LinearLayout.LayoutParams cardLp = new LinearLayout.LayoutParams(314, LinearLayout.LayoutParams.WRAP_CONTENT);
-        cardLp.setMargins(8, 0, 8, 0);
+        LinearLayout.LayoutParams cardLp = new LinearLayout.LayoutParams(238, LinearLayout.LayoutParams.WRAP_CONTENT);
+        cardLp.setMargins(5, 0, 5, 0);
         card.setLayoutParams(cardLp);
 
         View accent = new View(context);
         LinearLayout.LayoutParams accentLp = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, 5);
-        accentLp.setMargins(0, 0, 0, 8);
+                LinearLayout.LayoutParams.MATCH_PARENT, 3);
+        accentLp.setMargins(0, 0, 0, 5);
         accent.setLayoutParams(accentLp);
         card.addView(accent);
 
         TextView badge = new TextView(context);
-        badge.setTextSize(10f);
+        badge.setTextSize(8.5f);
         badge.setTypeface(Typeface.create("sans-serif-medium", Typeface.BOLD));
         badge.setSingleLine(true);
         badge.setEllipsize(TextUtils.TruncateAt.END);
@@ -275,24 +274,24 @@ public final class HomeHudOverlayController {
 
         TextView value = new TextView(context);
         value.setTextColor(Color.parseColor("#F8FAFC"));
-        value.setTextSize(20f);
+        value.setTextSize(14.5f);
         value.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
-        value.setPadding(0, 2, 0, 2);
+        value.setPadding(0, 1, 0, 1);
         value.setSingleLine(true);
         value.setEllipsize(TextUtils.TruncateAt.END);
         card.addView(value);
 
         TextView sub1 = new TextView(context);
         sub1.setTextColor(Color.parseColor("#CBD5E1"));
-        sub1.setTextSize(11f);
+        sub1.setTextSize(9.5f);
         sub1.setSingleLine(true);
         sub1.setEllipsize(TextUtils.TruncateAt.END);
         card.addView(sub1);
 
         TextView sub2 = new TextView(context);
         sub2.setTextColor(Color.parseColor("#94A3B8"));
-        sub2.setTextSize(10.5f);
-        sub2.setPadding(0, 2, 0, 0);
+        sub2.setTextSize(9.0f);
+        sub2.setPadding(0, 1, 0, 0);
         sub2.setSingleLine(true);
         sub2.setEllipsize(TextUtils.TruncateAt.END);
         card.addView(sub2);
@@ -327,8 +326,8 @@ public final class HomeHudOverlayController {
         boolean out = s.isSmillaOut();
         String knitPrefix = s.knittingLightOn ? "🧶 Stickning: PÅ 💡 • " : "";
         pillSmilla.setText(knitPrefix + (out
-                ? "🐱 Smilla: UTE (" + s.smillaHoursOut + ")"
-                : "🐱 Smilla: Inne (" + s.smillaHoursOut + ")"));
+                ? "🐱 Smilla: UTE (" + s.smillaPassages + ")"
+                : "🐱 Smilla: Inne (" + s.smillaPassages + ")"));
         pillSmilla.setTextColor(s.knittingLightOn
                 ? Color.parseColor("#FDE047")
                 : (out ? Color.parseColor("#FBBF24") : Color.parseColor("#4ADE80")));
@@ -348,7 +347,7 @@ public final class HomeHudOverlayController {
         pillVarmvatten.setText("🚿 VV " + s.waterTempC + "°C (" + s.waterVolume40cL + " L)");
         pillVarmvatten.setTextColor(Color.parseColor("#FB923C"));
 
-        pillInternet.setText(String.format(Locale.US, "🌐 ↓ %.1f Mbit/s", s.tvDownMbps));
+        pillInternet.setText(String.format(Locale.US, "🌐 ↓ %.1f Mbit/s • %d Wi-Fi", s.tvDownMbps, s.wifiClients));
         pillInternet.setTextColor(Color.parseColor("#C084FC"));
     }
 
@@ -363,7 +362,7 @@ public final class HomeHudOverlayController {
         cardSmilla.badge.setText(s.knittingLightOn ? "🧶 STICKNING PÅ • 🐱 SMILLA" : "🐱 SMILLA STATUS");
         cardSmilla.badge.setTextColor(smillaColor);
         cardSmilla.value.setText(out ? "UTE NU" : "INNE HEMMA");
-        cardSmilla.sub1.setText("Ute idag: " + s.smillaHoursOut + " • " + s.smillaPassages);
+        cardSmilla.sub1.setText("Ute: " + s.smillaHoursOut + " • " + s.smillaPassages);
         cardSmilla.sub2.setText("Kattlucka batteri: " + s.flapBattery);
 
         // 2. Elpris & Effekt
@@ -395,14 +394,14 @@ public final class HomeHudOverlayController {
         cardVarmvatten.sub1.setText("40°C-volym: " + s.waterVolume40cL + " liter");
         cardVarmvatten.sub2.setText("Mål " + s.waterTargetC + " °C • " + s.waterStatus);
 
-        // 5. Internet & UniFi
+        // 5. Internet & UniFi (Real-time WAN throughput + Wi-Fi clients, no NAS)
         int netColor = Color.parseColor("#C084FC");
         cardInternet.accentLine.setBackgroundColor(netColor);
-        cardInternet.badge.setText("🌐 INTERNET & UNIFI");
+        cardInternet.badge.setText("🌐 INTERNET & WIFI");
         cardInternet.badge.setTextColor(netColor);
         cardInternet.value.setText(String.format(Locale.US, "↓ %.1f Mbit/s", s.tvDownMbps));
-        cardInternet.sub1.setText("UCG Max: " + s.ucgState + " (CPU " + s.ucgCpuPct.replace(" ", "") + ")");
-        cardInternet.sub2.setText("Wi-Fi: " + s.wifiClients + " st • NAS: " + s.nasDownKbps);
+        cardInternet.sub1.setText(String.format(Locale.US, "↑ %.1f Mbit/s • Ping %d ms", s.tvUpMbps, s.wanLatencyMs));
+        cardInternet.sub2.setText("Wi-Fi: " + s.wifiClients + " klienter • CPU " + s.ucgCpuPct.replace(" ", ""));
     }
 
     public void hideOverlay() {

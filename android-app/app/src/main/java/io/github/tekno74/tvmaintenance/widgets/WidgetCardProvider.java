@@ -112,8 +112,9 @@ public final class WidgetCardProvider extends ContentProvider {
                 accentColor = Color.parseColor("#A855F7"); // Purple
                 badge = "INTERNET & UNIFI UCG MAX";
                 headline = String.format(Locale.US, "↓ %.1f Mbit/s", s.tvDownMbps);
-                subline1 = "Gateway: " + s.ucgState + " (CPU " + s.ucgCpuPct + ") • Wi-Fi: " + s.wifiClients + " enheter";
-                subline2 = "NAS ner: " + s.nasDownKbps + String.format(Locale.US, " • TV upp: ↑ %.1f Mbit/s", s.tvUpMbps);
+                subline1 = String.format(Locale.US, "↑ %.1f Mbit/s • Ping %d ms • Wi-Fi: %d klienter",
+                        s.tvUpMbps, s.wanLatencyMs, s.wifiClients);
+                subline2 = "Gateway: " + s.ucgState + " (CPU " + s.ucgCpuPct + ")";
                 barRatio = Math.min(1f, Math.max(0.10f, (float) (s.tvDownMbps / 100.0)));
                 break;
             }

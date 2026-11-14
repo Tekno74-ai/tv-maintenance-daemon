@@ -72,10 +72,10 @@ public final class HomeChannelPublisher {
             upsertCard(context, channelId, "varmvatten", 70, vvTitle, vvDesc, minuteBucket, MainActivity.class);
 
             // Card 5: Internet & UniFi UCG Max
-            String netTitle = String.format(Locale.US, "🌐 Internet: ↓ %.1f Mbit/s • UCG %s",
-                    snap.tvDownMbps, snap.ucgState);
-            String netDesc = "Gateway CPU: " + snap.ucgCpuPct + " • Wi-Fi: " + snap.wifiClients
-                    + " enheter • NAS: " + snap.nasDownKbps;
+            String netTitle = String.format(Locale.US, "🌐 Internet: ↓ %.1f Mbit/s • ↑ %.1f Mbit/s",
+                    snap.tvDownMbps, snap.tvUpMbps);
+            String netDesc = "Wi-Fi: " + snap.wifiClients + " klienter • Ping " + snap.wanLatencyMs
+                    + " ms • Gateway CPU: " + snap.ucgCpuPct;
             upsertCard(context, channelId, "internet", 60, netTitle, netDesc, minuteBucket, MainActivity.class);
 
         } catch (Exception e) {

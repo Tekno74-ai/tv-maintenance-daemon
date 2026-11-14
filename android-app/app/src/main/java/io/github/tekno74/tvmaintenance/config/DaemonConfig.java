@@ -110,6 +110,15 @@ public final class DaemonConfig {
             if (json.has("ha_token")) {
                 ed.putString("ha_token", json.optString("ha_token", ""));
             }
+            if (json.has("unifi_host")) {
+                ed.putString("unifi_host", json.optString("unifi_host", "192.168.0.1"));
+            }
+            if (json.has("unifi_user")) {
+                ed.putString("unifi_user", json.optString("unifi_user", ""));
+            }
+            if (json.has("unifi_pass")) {
+                ed.putString("unifi_pass", json.optString("unifi_pass", ""));
+            }
             if (json.has("enable_hud_overlay")) {
                 ed.putBoolean("enable_hud_overlay", json.optBoolean("enable_hud_overlay", false));
             }
@@ -196,6 +205,18 @@ public final class DaemonConfig {
 
     public String getHaToken() {
         return prefs.getString("ha_token", "");
+    }
+
+    public String getUnifiHost() {
+        return prefs.getString("unifi_host", "192.168.0.1");
+    }
+
+    public String getUnifiUser() {
+        return prefs.getString("unifi_user", "");
+    }
+
+    public String getUnifiPass() {
+        return prefs.getString("unifi_pass", "");
     }
 
     public boolean isHudOverlayEnabled() {

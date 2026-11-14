@@ -94,6 +94,7 @@ public final class WatcherService extends Service {
         dirtyQueue = new DirtyPackageQueue(this);
         hudOverlay = new HomeHudOverlayController(this, config);
         registerDynamicReceivers();
+        widgetWorker.execute(() -> SmartHomeData.refresh(getApplicationContext(), config));
         startWidgetLoop();
         Log.i(TAG, "WatcherService started in mode=" + config.getMode());
     }
