@@ -164,14 +164,23 @@ public final class HomeChannelPublisher {
     ) {
         ContentResolver resolver = context.getContentResolver();
         long programId = -1;
+        Uri channelProgramsUri = TvContract.buildPreviewProgramsUriForChannel(channelId);
         String[] proj = {"_id", "internal_provider_id"};
-        try (Cursor c = resolver.query(PREVIEW_PROGRAMS_URI, proj, "channel_id=?",
-                new String[]{String.valueOf(channelId)}, null)) {
+        try (Cursor c = resolver.query(channelProgramsUri, proj, null, null, null)) {
             if (c != null) {
                 while (c.moveToNext()) {
-                    if (cardKey.equals(c.getString(1))) {
-                        programId = c.getLong(0);
-                        break;
+                    long rowId = c.getLong(0);
+                    String rowKey = c.getString(1);
+                    if (cardKey.equals(rowKey)) {
+                        if (programId < 0) {
+                            programId = rowId;
+                        } else {
+                            // Remove duplicate preview program from earlier runs
+                            try {
+                                resolver.delete(ContentUris.withAppendedId(PREVIEW_PROGRAMS_URI, rowId), null, null);
+                            } catch (Exception ignored) {
+                            }
+                        }
                     }
                 }
             }
@@ -179,7 +188,8 @@ public final class HomeChannelPublisher {
         }
 
         Intent clickIntent = new Intent(context, targetActivity);
-        clickIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        clickIntent.putExtra("widget_key", cardKey);
+        clickIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
 
         String artUri = "content://" + WidgetCardProvider.AUTHORITY + "/" + cardKey + ".png?t=" + minuteBucket;
 

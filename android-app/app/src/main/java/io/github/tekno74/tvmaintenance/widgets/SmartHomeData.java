@@ -56,6 +56,10 @@ public final class SmartHomeData {
         public int smillaOutCount = 3;
         public int smillaInCount = 3;
         public String flapBattery = "36 %";
+        public String smillaLogSummary = "Inga passager registrerade ännu idag";
+        public String smillaLockState = "Olåst (Fri passage)";
+        public String smillaHubState = "Online";
+        public String smillaOverrideMode = "Automatisk (Kattlucka + Sensorer)";
 
         // 2. Electricity (Tibber Liljegränd 12)
         public int priceOre = 60;
@@ -64,25 +68,51 @@ public final class SmartHomeData {
         public int priceMaxOre = 190;
         public int currentPowerW = 1500;
         public String dailyCostSek = "100.4 kr";
+        public double powerAvgKw = 6.4;
+        public double powerMaxKw = 12.8;
+        public String phaseCurrents = "L1: 0.8 A (230V) • L2: 2.0 A (231V) • L3: 2.4 A (232V)";
+        public String dailyEnergyKwh = "73.2 kWh";
+        public String monthlyEnergyKwh = "722.6 kWh";
+        public String monthlyCostSek = "1530.5 kr";
+        public String ivtSavingsToday = "4.00 kr (0.64 kWh / 14.4 %)";
 
         // 3. Temperatures (IVT + Verisure)
         public String indoorTempC = "21.7";
         public String outdoorTempC = "3.6";
         public String upperHallTempC = "21.4";
+        public String indoorTargetC = "21.5";
+        public String entranceHallTempC = "22.4";
+        public String downstairsTempC = "21.3";
+        public String supplyTempC = "28.9";
+        public String supplyTargetC = "33.0";
+        public String returnTempC = "27.5";
+        public String degreeMinutes = "-600";
+        public String compressorState = "På";
 
         // 4. Water Heater (IVT Varmvatten)
         public String waterTempC = "56.4";
         public String waterTargetC = "48.0";
         public String waterVolume40cL = "244";
         public String waterStatus = "Aktiv (48°C)";
+        public String waterSpaStatus = "Normal (Dusch/Småbad)";
+        public String valveMode = "Radiatorer";
+        public String compressorHours = "32 812 h (10 302 starter)";
+        public String ivtAiBriefing = "Balanserad drift med selektiva spärrar vid pristoppar.";
 
         // 5. Internet & UniFi (WAN Throughput + Wi-Fi Clients + UCG Max)
         public double tvDownMbps = 3.2;
         public double tvUpMbps = 1.4;
+        public double tvLocalDownMbps = 0.0;
+        public double tvLocalUpMbps = 0.0;
         public int wanLatencyMs = 1;
         public String ucgState = "Online";
         public String ucgCpuPct = "12 %";
+        public String ucgMemPct = "45 %";
+        public String ucgUptime = "—";
+        public String wanIp = "—";
+        public String ispName = "Fiber WAN";
         public int wifiClients = 21;
+        public int lanClients = 12;
 
         // 6. Knitting Light Mode (Lisa)
         public boolean knittingLightOn = false;
@@ -117,6 +147,8 @@ public final class SmartHomeData {
         lastTrafficTimeMs = nowMs;
 
         // 2. Poll UniFi Cloud Gateway Max (/stat/health) every 6 seconds for live WAN throughput & Wi-Fi clients
+        snap.tvLocalDownMbps = localRxMbps;
+        snap.tvLocalUpMbps = localTxMbps;
         long wallNow = System.currentTimeMillis();
         if ((wallNow - lastUnifiPollMs) >= 6_000L) {
             lastUnifiPollMs = wallNow;
@@ -150,6 +182,18 @@ public final class SmartHomeData {
             JSONObject flapBat = fetchEntity(haUrl, haToken, "sensor.sin_kattlucka_battery_level");
             if (flapBat != null) snap.flapBattery = optValidState(flapBat, "36") + " %";
 
+            JSONObject flapLock = fetchEntity(haUrl, haToken, "lock.sin_kattlucka_locked_all");
+            if (flapLock != null) {
+                String ls = optValidState(flapLock, "unlocked");
+                snap.smillaLockState = "unlocked".equalsIgnoreCase(ls) ? "Olåst (Fri passage)" : "Låst (" + ls + ")";
+            }
+
+            JSONObject flapConn = fetchEntity(haUrl, haToken, "binary_sensor.sin_kattlucka_connectivity");
+            if (flapConn != null) {
+                String cs = optValidState(flapConn, "on");
+                snap.smillaHubState = "on".equalsIgnoreCase(cs) ? "Online" : "Offline";
+            }
+
             // Electricity Price & Power
             JSONObject priceObj = fetchEntity(haUrl, haToken, "sensor.liljegrand_12_electricity_price");
             if (priceObj != null) {
@@ -169,10 +213,66 @@ public final class SmartHomeData {
                 if (w >= 0) snap.currentPowerW = (int) Math.round(w);
             }
 
+            JSONObject avgPowerObj = fetchEntity(haUrl, haToken, "sensor.tibber_pulse_liljegrand_12_average_power");
+            if (avgPowerObj != null) {
+                double w = parseDoubleSafe(avgPowerObj.optString("state", ""), -1);
+                if (w >= 0) snap.powerAvgKw = Math.round((w / 1000.0) * 100.0) / 100.0;
+            }
+
+            JSONObject maxPowerObj = fetchEntity(haUrl, haToken, "sensor.tibber_pulse_liljegrand_12_max_power");
+            if (maxPowerObj != null) {
+                double w = parseDoubleSafe(maxPowerObj.optString("state", ""), -1);
+                if (w >= 0) snap.powerMaxKw = Math.round((w / 1000.0) * 100.0) / 100.0;
+            }
+
+            JSONObject l1Obj = fetchEntity(haUrl, haToken, "sensor.tibber_pulse_liljegrand_12_current_l1");
+            JSONObject l2Obj = fetchEntity(haUrl, haToken, "sensor.tibber_pulse_liljegrand_12_current_l2");
+            JSONObject l3Obj = fetchEntity(haUrl, haToken, "sensor.tibber_pulse_liljegrand_12_current_l3");
+            JSONObject v1Obj = fetchEntity(haUrl, haToken, "sensor.tibber_pulse_liljegrand_12_voltage_phase1");
+            JSONObject v2Obj = fetchEntity(haUrl, haToken, "sensor.tibber_pulse_liljegrand_12_voltage_phase2");
+            JSONObject v3Obj = fetchEntity(haUrl, haToken, "sensor.tibber_pulse_liljegrand_12_voltage_phase3");
+            if (l1Obj != null && l2Obj != null && l3Obj != null) {
+                String i1 = optValidState(l1Obj, "0.0");
+                String i2 = optValidState(l2Obj, "0.0");
+                String i3 = optValidState(l3Obj, "0.0");
+                String u1 = v1Obj != null ? optValidState(v1Obj, "230") : "230";
+                String u2 = v2Obj != null ? optValidState(v2Obj, "230") : "230";
+                String u3 = v3Obj != null ? optValidState(v3Obj, "230") : "230";
+                snap.phaseCurrents = "L1: " + i1 + " A (" + u1 + " V)  •  L2: " + i2 + " A (" + u2 + " V)  •  L3: " + i3 + " A (" + u3 + " V)";
+            }
+
             JSONObject costObj = fetchEntity(haUrl, haToken, "sensor.tibber_pulse_liljegrand_12_accumulated_cost");
             if (costObj != null) {
                 double c = parseDoubleSafe(costObj.optString("state", ""), -1);
                 if (c >= 0) snap.dailyCostSek = String.format(Locale.US, "%.1f kr", c);
+            }
+
+            JSONObject consObj = fetchEntity(haUrl, haToken, "sensor.tibber_pulse_liljegrand_12_accumulated_consumption");
+            if (consObj != null) {
+                double k = parseDoubleSafe(consObj.optString("state", ""), -1);
+                if (k >= 0) snap.dailyEnergyKwh = String.format(Locale.US, "%.1f kWh", k);
+            }
+
+            JSONObject mConsObj = fetchEntity(haUrl, haToken, "sensor.liljegrand_12_monthly_net_consumption");
+            if (mConsObj != null) {
+                double k = parseDoubleSafe(mConsObj.optString("state", ""), -1);
+                if (k >= 0) snap.monthlyEnergyKwh = String.format(Locale.US, "%.1f kWh", k);
+            }
+
+            JSONObject mCostObj = fetchEntity(haUrl, haToken, "sensor.liljegrand_12_monthly_cost");
+            if (mCostObj != null) {
+                double c = parseDoubleSafe(mCostObj.optString("state", ""), -1);
+                if (c >= 0) snap.monthlyCostSek = String.format(Locale.US, "%.0f kr", c);
+            }
+
+            JSONObject savSekObj = fetchEntity(haUrl, haToken, "sensor.ivt_daily_savings_sek");
+            JSONObject savKwhObj = fetchEntity(haUrl, haToken, "sensor.ivt_daily_savings_kwh");
+            JSONObject savPctObj = fetchEntity(haUrl, haToken, "sensor.ivt_daily_savings_pct");
+            if (savSekObj != null) {
+                String sSek = optValidState(savSekObj, "0.0");
+                String sKwh = savKwhObj != null ? optValidState(savKwhObj, "0.0") : "0.0";
+                String sPct = savPctObj != null ? optValidState(savPctObj, "0.0") : "0.0";
+                snap.ivtSavingsToday = sSek + " kr (" + sKwh + " kWh / " + sPct + " %)";
             }
 
             // Temperatures
@@ -180,6 +280,12 @@ public final class SmartHomeData {
             if (inTemp != null) {
                 double t = parseDoubleSafe(inTemp.optString("state", ""), -999);
                 if (t > -100) snap.indoorTempC = String.format(Locale.US, "%.1f", t);
+            }
+
+            JSONObject inTarget = fetchEntity(haUrl, haToken, "sensor.ivt_rumstemperatur_borvarde");
+            if (inTarget != null) {
+                double t = parseDoubleSafe(inTarget.optString("state", ""), -999);
+                if (t > -100) snap.indoorTargetC = String.format(Locale.US, "%.1f", t);
             }
 
             JSONObject outTemp = fetchEntity(haUrl, haToken, "sensor.ivt_verklig_utetemperatur");
@@ -192,6 +298,46 @@ public final class SmartHomeData {
             if (hallTemp != null) {
                 double t = parseDoubleSafe(hallTemp.optString("state", ""), -999);
                 if (t > -100) snap.upperHallTempC = String.format(Locale.US, "%.1f", t);
+            }
+
+            JSONObject entreTemp = fetchEntity(haUrl, haToken, "sensor.entrehall_temperature");
+            if (entreTemp != null) {
+                double t = parseDoubleSafe(entreTemp.optString("state", ""), -999);
+                if (t > -100) snap.entranceHallTempC = String.format(Locale.US, "%.1f", t);
+            }
+
+            JSONObject downTemp = fetchEntity(haUrl, haToken, "sensor.hall_timmerflotte_temp_underva_temperature");
+            if (downTemp != null) {
+                double t = parseDoubleSafe(downTemp.optString("state", ""), -999);
+                if (t > -100) snap.downstairsTempC = String.format(Locale.US, "%.1f", t);
+            }
+
+            JSONObject supTemp = fetchEntity(haUrl, haToken, "sensor.ivt_framledningstemperatur");
+            if (supTemp != null) {
+                double t = parseDoubleSafe(supTemp.optString("state", ""), -999);
+                if (t > -100) snap.supplyTempC = String.format(Locale.US, "%.1f", t);
+            }
+
+            JSONObject supTarget = fetchEntity(haUrl, haToken, "sensor.ivt_hc1_framledning_borvarde");
+            if (supTarget != null) {
+                double t = parseDoubleSafe(supTarget.optString("state", ""), -999);
+                if (t > -100) snap.supplyTargetC = String.format(Locale.US, "%.1f", t);
+            }
+
+            JSONObject retTemp = fetchEntity(haUrl, haToken, "sensor.ivt_returtemperatur");
+            if (retTemp != null) {
+                double t = parseDoubleSafe(retTemp.optString("state", ""), -999);
+                if (t > -100) snap.returnTempC = String.format(Locale.US, "%.1f", t);
+            }
+
+            JSONObject degMin = fetchEntity(haUrl, haToken, "sensor.ivt_virtuella_gradminuter");
+            if (degMin != null) {
+                snap.degreeMinutes = optValidState(degMin, snap.degreeMinutes);
+            }
+
+            JSONObject compDrift = fetchEntity(haUrl, haToken, "sensor.ivt_kompressor_drift");
+            if (compDrift != null) {
+                snap.compressorState = optValidState(compDrift, snap.compressorState);
             }
 
             // Water Heater (IVT)
@@ -215,6 +361,29 @@ public final class SmartHomeData {
             JSONObject vvStatus = fetchEntity(haUrl, haToken, "sensor.ivt_smart_control_status");
             if (vvStatus != null) {
                 snap.waterStatus = optValidState(vvStatus, snap.waterStatus);
+            }
+
+            JSONObject spaStatus = fetchEntity(haUrl, haToken, "sensor.ivt_spa_bad_status");
+            if (spaStatus != null) {
+                snap.waterSpaStatus = optValidState(spaStatus, snap.waterSpaStatus);
+            }
+
+            JSONObject valveObj = fetchEntity(haUrl, haToken, "sensor.ivt_vaxelventil_lage");
+            if (valveObj != null) {
+                snap.valveMode = optValidState(valveObj, snap.valveMode);
+            }
+
+            JSONObject compHoursObj = fetchEntity(haUrl, haToken, "sensor.ivt_total_drifttid_timmar");
+            JSONObject compStartsObj = fetchEntity(haUrl, haToken, "sensor.ivt_kompressor_antal_starter");
+            if (compHoursObj != null) {
+                String ch = optValidState(compHoursObj, "32812");
+                String cs = compStartsObj != null ? optValidState(compStartsObj, "10302") : "10302";
+                snap.compressorHours = ch + " h (" + cs + " starter)";
+            }
+
+            JSONObject aiBriefObj = fetchEntity(haUrl, haToken, "sensor.ivt_ai_daily_briefing");
+            if (aiBriefObj != null) {
+                snap.ivtAiBriefing = optValidState(aiBriefObj, snap.ivtAiBriefing);
             }
 
             // Knitting Light Mode (Lisa)
@@ -246,6 +415,9 @@ public final class SmartHomeData {
         JSONObject overrideSel = fetchEntity(haUrl, haToken, "input_select.smilla_korrigerad_plats");
         if (overrideSel != null) {
             String sel = optValidState(overrideSel, "");
+            if (!sel.isEmpty()) {
+                snap.smillaOverrideMode = sel;
+            }
             if (sel.toLowerCase(Locale.ROOT).contains("tvinga inne")) {
                 isInside = true;
             } else if (sel.toLowerCase(Locale.ROOT).contains("tvinga ute")) {
@@ -264,6 +436,7 @@ public final class SmartHomeData {
             long midnightMs = cal.getTimeInMillis();
 
             SimpleDateFormat sdfLocal = new SimpleDateFormat("yyyy-MM-dd'T'00:00:00", Locale.US);
+            SimpleDateFormat hmFormat = new SimpleDateFormat("HH:mm", Locale.US);
             String startIso = sdfLocal.format(new Date(midnightMs));
             String histUrl = haUrl.replaceAll("/+$", "")
                     + "/api/history/period/" + startIso
@@ -279,6 +452,7 @@ public final class SmartHomeData {
                     long totalOutMs = 0L;
                     long outStartMs = -1L;
                     String prevState = null;
+                    StringBuilder logSb = new StringBuilder();
 
                     for (int i = 0; i < events.length(); i++) {
                         JSONObject ev = events.getJSONObject(i);
@@ -291,27 +465,42 @@ public final class SmartHomeData {
                         if (prevState == null) {
                             // Initial state at midnight (or first record)
                             if (tsMs > midnightMs) {
-                                // Transition occurred after midnight
+                                String tStr = hmFormat.format(new Date(tsMs));
                                 if ("off".equals(st)) {
                                     outCount++;
                                     outStartMs = clampedTs;
+                                    if (logSb.length() > 0) logSb.append("  •  ");
+                                    logSb.append(tStr).append(" Gick ut 🐾");
                                 } else {
                                     inCount++;
+                                    if (logSb.length() > 0) logSb.append("  •  ");
+                                    logSb.append(tStr).append(" Kom in 🏠");
                                 }
                             } else if ("off".equals(st)) {
-                                // Was already outside at midnight
                                 outStartMs = midnightMs;
+                                logSb.append("00:00 Ute sedan midnatt 🐾");
                             }
                         } else if (!st.equals(prevState)) {
+                            String tStr = hmFormat.format(new Date(clampedTs));
                             if ("off".equals(st)) {
                                 outCount++;
                                 outStartMs = clampedTs;
+                                if (logSb.length() > 0) logSb.append("  •  ");
+                                logSb.append(tStr).append(" Gick ut 🐾");
                             } else {
                                 inCount++;
+                                long durMin = 0L;
                                 if (outStartMs > 0 && clampedTs > outStartMs) {
-                                    totalOutMs += (clampedTs - outStartMs);
+                                    long diff = clampedTs - outStartMs;
+                                    totalOutMs += diff;
+                                    durMin = Math.round(diff / 60_000.0);
                                 }
                                 outStartMs = -1L;
+                                if (logSb.length() > 0) logSb.append(" → ");
+                                logSb.append(tStr).append(" Kom in 🏠");
+                                if (durMin > 0) {
+                                    logSb.append(" (").append(durMin).append(" min)");
+                                }
                             }
                         }
                         prevState = st;
@@ -327,6 +516,9 @@ public final class SmartHomeData {
                     snap.smillaOutCount = outCount;
                     snap.smillaInCount = inCount;
                     snap.smillaPassages = outCount + " ut / " + inCount + " in";
+                    snap.smillaLogSummary = logSb.length() > 0
+                            ? logSb.toString()
+                            : "Inga registrerade passager sedan midnatt (Smilla har varit " + (isInside ? "inne" : "ute") + ")";
                 }
             }
         } catch (Exception e) {
@@ -396,9 +588,16 @@ public final class SmartHomeData {
                 if ("wlan".equals(sys)) {
                     int users = sub.optInt("num_user", 0) + sub.optInt("num_guest", 0);
                     if (users > 0) snap.wifiClients = users;
+                } else if ("lan".equals(sys)) {
+                    int lanUsers = sub.optInt("num_user", 0) + sub.optInt("num_guest", 0);
+                    if (lanUsers > 0) snap.lanClients = lanUsers;
                 } else if ("wan".equals(sys)) {
                     String st = sub.optString("status", "ok");
                     snap.ucgState = "ok".equalsIgnoreCase(st) ? "Online" : st;
+                    String wip = sub.optString("wan_ip", "");
+                    if (!wip.isEmpty()) snap.wanIp = wip;
+                    String isp = sub.optString("isp_name", "");
+                    if (!isp.isEmpty()) snap.ispName = isp;
                     double rxBps = sub.optDouble("rx_bytes-r", 0.0);
                     double txBps = sub.optDouble("tx_bytes-r", 0.0);
                     snap.tvDownMbps = Math.round(((rxBps * 8.0) / 1_000_000.0) * 10.0) / 10.0;
@@ -407,6 +606,14 @@ public final class SmartHomeData {
                     if (gwStats != null) {
                         double cpu = parseDoubleSafe(gwStats.optString("cpu", ""), -1);
                         if (cpu >= 0) snap.ucgCpuPct = String.format(Locale.US, "%.0f %%", cpu);
+                        double mem = parseDoubleSafe(gwStats.optString("mem", ""), -1);
+                        if (mem >= 0) snap.ucgMemPct = String.format(Locale.US, "%.0f %%", mem);
+                        long upSec = (long) parseDoubleSafe(gwStats.optString("uptime", ""), -1);
+                        if (upSec > 0) {
+                            long days = upSec / 86400L;
+                            long hours = (upSec % 86400L) / 3600L;
+                            snap.ucgUptime = days + " d " + hours + " h";
+                        }
                     }
                 } else if ("www".equals(sys)) {
                     int lat = sub.optInt("latency", -1);
@@ -591,25 +798,55 @@ public final class SmartHomeData {
         s.smillaOutCount = p.getInt("smillaOutCount", s.smillaOutCount);
         s.smillaInCount = p.getInt("smillaInCount", s.smillaInCount);
         s.flapBattery = p.getString("flapBattery", s.flapBattery);
+        s.smillaLogSummary = p.getString("smillaLogSummary", s.smillaLogSummary);
+        s.smillaLockState = p.getString("smillaLockState", s.smillaLockState);
+        s.smillaHubState = p.getString("smillaHubState", s.smillaHubState);
+        s.smillaOverrideMode = p.getString("smillaOverrideMode", s.smillaOverrideMode);
         s.priceOre = p.getInt("priceOre", s.priceOre);
         s.priceMinOre = p.getInt("priceMinOre", s.priceMinOre);
         s.priceAvgOre = p.getInt("priceAvgOre", s.priceAvgOre);
         s.priceMaxOre = p.getInt("priceMaxOre", s.priceMaxOre);
         s.currentPowerW = p.getInt("currentPowerW", s.currentPowerW);
         s.dailyCostSek = p.getString("dailyCostSek", s.dailyCostSek);
+        s.powerAvgKw = Double.longBitsToDouble(p.getLong("powerAvgKw", Double.doubleToLongBits(s.powerAvgKw)));
+        s.powerMaxKw = Double.longBitsToDouble(p.getLong("powerMaxKw", Double.doubleToLongBits(s.powerMaxKw)));
+        s.phaseCurrents = p.getString("phaseCurrents", s.phaseCurrents);
+        s.dailyEnergyKwh = p.getString("dailyEnergyKwh", s.dailyEnergyKwh);
+        s.monthlyEnergyKwh = p.getString("monthlyEnergyKwh", s.monthlyEnergyKwh);
+        s.monthlyCostSek = p.getString("monthlyCostSek", s.monthlyCostSek);
+        s.ivtSavingsToday = p.getString("ivtSavingsToday", s.ivtSavingsToday);
         s.indoorTempC = p.getString("indoorTempC", s.indoorTempC);
         s.outdoorTempC = p.getString("outdoorTempC", s.outdoorTempC);
         s.upperHallTempC = p.getString("upperHallTempC", s.upperHallTempC);
+        s.indoorTargetC = p.getString("indoorTargetC", s.indoorTargetC);
+        s.entranceHallTempC = p.getString("entranceHallTempC", s.entranceHallTempC);
+        s.downstairsTempC = p.getString("downstairsTempC", s.downstairsTempC);
+        s.supplyTempC = p.getString("supplyTempC", s.supplyTempC);
+        s.supplyTargetC = p.getString("supplyTargetC", s.supplyTargetC);
+        s.returnTempC = p.getString("returnTempC", s.returnTempC);
+        s.degreeMinutes = p.getString("degreeMinutes", s.degreeMinutes);
+        s.compressorState = p.getString("compressorState", s.compressorState);
         s.waterTempC = p.getString("waterTempC", s.waterTempC);
         s.waterTargetC = p.getString("waterTargetC", s.waterTargetC);
         s.waterVolume40cL = p.getString("waterVolume40cL", s.waterVolume40cL);
         s.waterStatus = p.getString("waterStatus", s.waterStatus);
+        s.waterSpaStatus = p.getString("waterSpaStatus", s.waterSpaStatus);
+        s.valveMode = p.getString("valveMode", s.valveMode);
+        s.compressorHours = p.getString("compressorHours", s.compressorHours);
+        s.ivtAiBriefing = p.getString("ivtAiBriefing", s.ivtAiBriefing);
         s.tvDownMbps = Double.longBitsToDouble(p.getLong("tvDownMbps", Double.doubleToLongBits(s.tvDownMbps)));
         s.tvUpMbps = Double.longBitsToDouble(p.getLong("tvUpMbps", Double.doubleToLongBits(s.tvUpMbps)));
+        s.tvLocalDownMbps = Double.longBitsToDouble(p.getLong("tvLocalDownMbps", Double.doubleToLongBits(s.tvLocalDownMbps)));
+        s.tvLocalUpMbps = Double.longBitsToDouble(p.getLong("tvLocalUpMbps", Double.doubleToLongBits(s.tvLocalUpMbps)));
         s.wanLatencyMs = p.getInt("wanLatencyMs", s.wanLatencyMs);
         s.ucgState = p.getString("ucgState", s.ucgState);
         s.ucgCpuPct = p.getString("ucgCpuPct", s.ucgCpuPct);
+        s.ucgMemPct = p.getString("ucgMemPct", s.ucgMemPct);
+        s.ucgUptime = p.getString("ucgUptime", s.ucgUptime);
+        s.wanIp = p.getString("wanIp", s.wanIp);
+        s.ispName = p.getString("ispName", s.ispName);
         s.wifiClients = p.getInt("wifiClients", s.wifiClients);
+        s.lanClients = p.getInt("lanClients", s.lanClients);
         s.knittingLightOn = p.getBoolean("knittingLightOn", s.knittingLightOn);
         s.updatedEpochMs = p.getLong("updatedEpochMs", 0L);
         return s;
@@ -624,28 +861,85 @@ public final class SmartHomeData {
                 .putInt("smillaOutCount", s.smillaOutCount)
                 .putInt("smillaInCount", s.smillaInCount)
                 .putString("flapBattery", s.flapBattery)
+                .putString("smillaLogSummary", s.smillaLogSummary)
+                .putString("smillaLockState", s.smillaLockState)
+                .putString("smillaHubState", s.smillaHubState)
+                .putString("smillaOverrideMode", s.smillaOverrideMode)
                 .putInt("priceOre", s.priceOre)
                 .putInt("priceMinOre", s.priceMinOre)
                 .putInt("priceAvgOre", s.priceAvgOre)
                 .putInt("priceMaxOre", s.priceMaxOre)
                 .putInt("currentPowerW", s.currentPowerW)
                 .putString("dailyCostSek", s.dailyCostSek)
+                .putLong("powerAvgKw", Double.doubleToLongBits(s.powerAvgKw))
+                .putLong("powerMaxKw", Double.doubleToLongBits(s.powerMaxKw))
+                .putString("phaseCurrents", s.phaseCurrents)
+                .putString("dailyEnergyKwh", s.dailyEnergyKwh)
+                .putString("monthlyEnergyKwh", s.monthlyEnergyKwh)
+                .putString("monthlyCostSek", s.monthlyCostSek)
+                .putString("ivtSavingsToday", s.ivtSavingsToday)
                 .putString("indoorTempC", s.indoorTempC)
                 .putString("outdoorTempC", s.outdoorTempC)
                 .putString("upperHallTempC", s.upperHallTempC)
+                .putString("indoorTargetC", s.indoorTargetC)
+                .putString("entranceHallTempC", s.entranceHallTempC)
+                .putString("downstairsTempC", s.downstairsTempC)
+                .putString("supplyTempC", s.supplyTempC)
+                .putString("supplyTargetC", s.supplyTargetC)
+                .putString("returnTempC", s.returnTempC)
+                .putString("degreeMinutes", s.degreeMinutes)
+                .putString("compressorState", s.compressorState)
                 .putString("waterTempC", s.waterTempC)
                 .putString("waterTargetC", s.waterTargetC)
                 .putString("waterVolume40cL", s.waterVolume40cL)
                 .putString("waterStatus", s.waterStatus)
+                .putString("waterSpaStatus", s.waterSpaStatus)
+                .putString("valveMode", s.valveMode)
+                .putString("compressorHours", s.compressorHours)
+                .putString("ivtAiBriefing", s.ivtAiBriefing)
                 .putLong("tvDownMbps", Double.doubleToLongBits(s.tvDownMbps))
                 .putLong("tvUpMbps", Double.doubleToLongBits(s.tvUpMbps))
+                .putLong("tvLocalDownMbps", Double.doubleToLongBits(s.tvLocalDownMbps))
+                .putLong("tvLocalUpMbps", Double.doubleToLongBits(s.tvLocalUpMbps))
                 .putInt("wanLatencyMs", s.wanLatencyMs)
                 .putString("ucgState", s.ucgState)
                 .putString("ucgCpuPct", s.ucgCpuPct)
+                .putString("ucgMemPct", s.ucgMemPct)
+                .putString("ucgUptime", s.ucgUptime)
+                .putString("wanIp", s.wanIp)
+                .putString("ispName", s.ispName)
                 .putInt("wifiClients", s.wifiClients)
+                .putInt("lanClients", s.lanClients)
                 .putBoolean("knittingLightOn", s.knittingLightOn)
                 .putLong("updatedEpochMs", s.updatedEpochMs)
                 .apply();
+    }
+
+    /**
+     * Sets Smilla's manual override selector in Home Assistant (input_select.smilla_korrigerad_plats).
+     */
+    public static synchronized void setSmillaOverrideMode(Context context, DaemonConfig config, String option) {
+        String haUrl = config.getHaUrl();
+        String haToken = config.getHaToken();
+        if (haUrl == null || haUrl.isEmpty() || haToken == null || haToken.isEmpty()) return;
+        try {
+            JSONObject body = new JSONObject();
+            body.put("entity_id", "input_select.smilla_korrigerad_plats");
+            body.put("option", option);
+            postHaJson(haUrl.replaceAll("/+$", "") + "/api/services/input_select/select_option", haToken, body.toString());
+
+            Snapshot snap = loadCached(context);
+            snap.smillaOverrideMode = option;
+            if (option.toLowerCase(Locale.ROOT).contains("tvinga inne")) {
+                snap.smillaStatus = "Hemma (Inomhus)";
+            } else if (option.toLowerCase(Locale.ROOT).contains("tvinga ute")) {
+                snap.smillaStatus = "Ute";
+            }
+            snap.updatedEpochMs = 0L; // Force next refresh
+            saveCached(context, snap);
+        } catch (Exception e) {
+            Log.w(TAG, "Failed to set Smilla override mode: " + e.getMessage());
+        }
     }
 
     /**
