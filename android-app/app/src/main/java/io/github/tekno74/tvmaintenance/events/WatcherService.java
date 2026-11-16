@@ -4,6 +4,8 @@ import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.Service;
+import android.app.usage.UsageEvents;
+import android.app.usage.UsageStatsManager;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -16,6 +18,7 @@ import android.os.Looper;
 import android.os.PowerManager;
 import android.util.Log;
 
+import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -23,6 +26,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import io.github.tekno74.tvmaintenance.R;
 import io.github.tekno74.tvmaintenance.config.DaemonConfig;
 import io.github.tekno74.tvmaintenance.engine.MaintenanceEngine;
+import io.github.tekno74.tvmaintenance.engine.SafetyInvariants;
 import io.github.tekno74.tvmaintenance.telemetry.HomeAssistantClient;
 import io.github.tekno74.tvmaintenance.telemetry.MetricsCollector;
 import io.github.tekno74.tvmaintenance.widgets.HomeChannelPublisher;
@@ -31,9 +35,10 @@ import io.github.tekno74.tvmaintenance.widgets.SmartHomeData;
 
 /**
  * Module 4b (events): Event-driven background service that listens to OS broadcasts:
- *  - ACTION_SCREEN_ON:        Cancels pending standby maintenance within the 15s regret window (UC2).
- *  - ACTION_SCREEN_OFF:       Acquires PARTIAL_WAKE_LOCK, waits 15s debounce, and executes dark-mode maintenance (UC1).
- *  - ACTION_PACKAGE_REPLACED: Queues updated streaming apps for AOT dex2oat compilation (UC3).
+ *  - ACTION_SCREEN_ON:        Cancels pending standby maintenance within the 15s regret window (UC1/UC2).
+ *  - ACTION_SCREEN_OFF:       Acquires PARTIAL_WAKE_LOCK, waits 15s debounce, and executes dark-mode maintenance (UC2/UC3).
+ *  - ACTION_PACKAGE_REPLACED: Queues updated streaming apps for AOT dex2oat compilation (UC4).
+ *  - Prolonged Playback:      Executes gentle cache/fstrim live-trim without interrupting video (UC5).
  */
 public final class WatcherService extends Service {
     private static final String TAG = "TvMaintWatcher";
@@ -54,6 +59,8 @@ public final class WatcherService extends Service {
     private Runnable pendingScreenOffTask;
     private Runnable widgetTickTask;
     private long lastChannelSyncMs = 0L;
+    private long activePlaybackStartMs = 0L;
+    private String activePlaybackPkg = "";
     private boolean receiversRegistered = false;
 
     private final BroadcastReceiver screenReceiver = new BroadcastReceiver() {
@@ -112,6 +119,7 @@ public final class WatcherService extends Service {
                 widgetWorker.execute(() -> {
                     SmartHomeData.Snapshot snap = SmartHomeData.refresh(getApplicationContext(), config);
                     hudOverlay.updateOnMainThread(snap);
+                    checkLiveTrimNeeded();
                     long now = System.currentTimeMillis();
                     if (config.isHomeChannelEnabled() && (now - lastChannelSyncMs) >= 60_000L) {
                         lastChannelSyncMs = now;
@@ -188,6 +196,8 @@ public final class WatcherService extends Service {
     private void handleScreenOn() {
         Log.i(TAG, "ACTION_SCREEN_ON detected: cancelling any pending standby maintenance.");
         abortRequested.set(true);
+        activePlaybackStartMs = 0L;
+        activePlaybackPkg = "";
         if (pendingScreenOffTask != null) {
             mainHandler.removeCallbacks(pendingScreenOffTask);
             pendingScreenOffTask = null;
@@ -211,12 +221,29 @@ public final class WatcherService extends Service {
 
     private void handleScreenOff() {
         stopWidgetLoop();
+        activePlaybackStartMs = 0L;
+        activePlaybackPkg = "";
         config.syncFromExternalJsonIfPresent();
         int debounceSec = config.getScreenOffDebounceSeconds();
         Log.i(TAG, "ACTION_SCREEN_OFF detected: acquiring PARTIAL_WAKE_LOCK and waiting " + debounceSec + "s debounce...");
 
         abortRequested.set(false);
         acquireLocks();
+
+        // Immediate (<1s) UC1 HA state update before debounce maintenance finishes
+        worker.execute(() -> {
+            MetricsCollector.SystemSnapshot snap = MetricsCollector.collect(getApplicationContext());
+            HomeAssistantClient.publishStatus(
+                    getApplicationContext(),
+                    config,
+                    "SCREEN_OFF_PENDING",
+                    "TV Sleeping (15s debounce before trim)",
+                    snap.memAvailableMb,
+                    snap.memAvailableMb,
+                    0,
+                    0
+            );
+        });
 
         if (pendingScreenOffTask != null) {
             mainHandler.removeCallbacks(pendingScreenOffTask);
@@ -238,6 +265,63 @@ public final class WatcherService extends Service {
             });
         };
         mainHandler.postDelayed(pendingScreenOffTask, debounceSec * 1000L);
+    }
+
+    /**
+     * UC5: Detects prolonged continuous streaming playback (>60 min) and schedules a gentle
+     * cache/fstrim trim without touching running playback apps.
+     */
+    private void checkLiveTrimNeeded() {
+        try {
+            String fg = detectForegroundPackage();
+            if (fg.isEmpty() || SafetyInvariants.isProtectedPackage(fg, config)
+                    || !config.getCoreApps().contains(fg)) {
+                activePlaybackStartMs = 0L;
+                activePlaybackPkg = "";
+                return;
+            }
+            long now = System.currentTimeMillis();
+            if (!fg.equals(activePlaybackPkg)) {
+                activePlaybackPkg = fg;
+                activePlaybackStartMs = now;
+                return;
+            }
+            long thresholdMs = Math.max(15, config.getLiveTrimIntervalMinutes()) * 60_000L;
+            long lastLiveTrimMs = HomeAssistantClient.getLastLiveTrimEpochMs(this);
+            if (activePlaybackStartMs > 0 && (now - activePlaybackStartMs) >= thresholdMs
+                    && (now - lastLiveTrimMs) >= 12 * 3_600_000L) {
+                activePlaybackStartMs = now;
+                final String pkgSnapshot = fg;
+                worker.execute(() -> MaintenanceEngine.runLiveTrim(getApplicationContext(), config, pkgSnapshot));
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "Live trim check error: " + e.getMessage());
+        }
+    }
+
+    private String detectForegroundPackage() {
+        try {
+            UsageStatsManager usm = (UsageStatsManager) getSystemService(Context.USAGE_STATS_SERVICE);
+            if (usm == null) return "";
+            long now = System.currentTimeMillis();
+            UsageEvents events = usm.queryEvents(now - 2 * 3_600_000L, now);
+            UsageEvents.Event ev = new UsageEvents.Event();
+            String latestPkg = "";
+            long latestTs = 0L;
+            while (events != null && events.hasNextEvent()) {
+                events.getNextEvent(ev);
+                if (ev.getEventType() == UsageEvents.Event.ACTIVITY_RESUMED && ev.getTimeStamp() >= latestTs) {
+                    String pkg = ev.getPackageName();
+                    if (pkg != null && !"android".equals(pkg) && !"com.android.systemui".equals(pkg)) {
+                        latestPkg = pkg;
+                        latestTs = ev.getTimeStamp();
+                    }
+                }
+            }
+            return latestPkg.trim();
+        } catch (Exception ignored) {
+            return "";
+        }
     }
 
     private synchronized void acquireLocks() {

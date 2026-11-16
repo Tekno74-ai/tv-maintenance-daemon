@@ -128,13 +128,12 @@ public final class SmartHomeData {
     public static synchronized Snapshot refresh(Context context, DaemonConfig config) {
         Snapshot snap = loadCached(context);
 
-        // 1. Measure local TV NIC throughput (via /proc/net/dev eth0 + TrafficStats fallback)
+        // 1. Measure local TV NIC throughput via TrafficStats (avoids SELinux denial on /proc/net/dev)
         double localRxMbps = 0.0;
         double localTxMbps = 0.0;
         long nowMs = SystemClock.elapsedRealtime();
-        long[] nicBytes = readEth0Bytes();
-        long rx = nicBytes[0] > 0 ? nicBytes[0] : TrafficStats.getTotalRxBytes();
-        long tx = nicBytes[1] > 0 ? nicBytes[1] : TrafficStats.getTotalTxBytes();
+        long rx = Math.max(0L, TrafficStats.getTotalRxBytes());
+        long tx = Math.max(0L, TrafficStats.getTotalTxBytes());
         if (lastTrafficTimeMs > 0 && nowMs > lastTrafficTimeMs && rx >= lastRxBytes && tx >= lastTxBytes && lastRxBytes > 0) {
             double dtSec = (nowMs - lastTrafficTimeMs) / 1000.0;
             if (dtSec >= 0.5) {
@@ -714,26 +713,6 @@ public final class SmartHomeData {
         } finally {
             if (conn != null) conn.disconnect();
         }
-    }
-
-    private static long[] readEth0Bytes() {
-        long rx = 0L;
-        long tx = 0L;
-        try (BufferedReader br = new BufferedReader(new FileReader("/proc/net/dev"))) {
-            String line;
-            while ((line = br.readLine()) != null) {
-                String trimmed = line.trim();
-                if (trimmed.startsWith("eth0:") || trimmed.startsWith("wlan0:")) {
-                    String[] parts = trimmed.substring(trimmed.indexOf(':') + 1).trim().split("\\s+");
-                    if (parts.length >= 9) {
-                        rx += Long.parseLong(parts[0]);
-                        tx += Long.parseLong(parts[8]);
-                    }
-                }
-            }
-        } catch (Exception ignored) {
-        }
-        return new long[]{rx, tx};
     }
 
     private static String httpGet(String urlStr, String token) {

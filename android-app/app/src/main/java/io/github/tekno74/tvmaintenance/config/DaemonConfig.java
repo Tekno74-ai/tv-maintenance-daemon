@@ -66,7 +66,17 @@ public final class DaemonConfig {
             return;
         }
         long lastModified = externalConfigFile.lastModified();
-        if (lastModified <= prefs.getLong("external_json_mtime", 0L)) {
+        boolean hasCorruptCoreApps = false;
+        Set<String> existingCore = prefs.getStringSet("core_apps", null);
+        if (existingCore != null) {
+            for (String item : existingCore) {
+                if (item != null && item.trim().startsWith("{")) {
+                    hasCorruptCoreApps = true;
+                    break;
+                }
+            }
+        }
+        if (!hasCorruptCoreApps && lastModified <= prefs.getLong("external_json_mtime", 0L)) {
             return;
         }
         try (BufferedReader reader = new BufferedReader(
@@ -101,6 +111,9 @@ public final class DaemonConfig {
             if (json.has("screen_off_debounce_seconds")) {
                 ed.putInt("screen_off_debounce_seconds", json.optInt("screen_off_debounce_seconds", 15));
             }
+            if (json.has("live_trim_interval_minutes")) {
+                ed.putInt("live_trim_interval_minutes", json.optInt("live_trim_interval_minutes", 60));
+            }
             if (json.has("ha_webhook_url")) {
                 ed.putString("ha_webhook_url", json.optString("ha_webhook_url", ""));
             }
@@ -132,7 +145,7 @@ public final class DaemonConfig {
                 JSONArray arr = json.getJSONArray("core_apps");
                 Set<String> set = new LinkedHashSet<>();
                 for (int i = 0; i < arr.length(); i++) {
-                    String pkg = arr.optString(i, "").trim();
+                    String pkg = extractPackageName(arr, i);
                     if (!pkg.isEmpty()) set.add(pkg);
                 }
                 ed.putStringSet("core_apps", set);
@@ -177,6 +190,10 @@ public final class DaemonConfig {
 
     public int getMinMinutesBetweenStandbyRuns() {
         return prefs.getInt("min_minutes_between_standby_runs", 30);
+    }
+
+    public int getLiveTrimIntervalMinutes() {
+        return prefs.getInt("live_trim_interval_minutes", 60);
     }
 
     public String getDefaultLauncher() {
@@ -244,7 +261,35 @@ public final class DaemonConfig {
         if (stored == null || stored.isEmpty()) {
             return Collections.unmodifiableList(DEFAULT_CORE_APPS);
         }
-        return new ArrayList<>(stored);
+        List<String> sanitized = new ArrayList<>();
+        for (String item : stored) {
+            String pkg = sanitizePackageEntry(item);
+            if (!pkg.isEmpty() && !sanitized.contains(pkg)) {
+                sanitized.add(pkg);
+            }
+        }
+        return sanitized.isEmpty() ? Collections.unmodifiableList(DEFAULT_CORE_APPS) : sanitized;
+    }
+
+    private static String extractPackageName(JSONArray arr, int index) {
+        JSONObject obj = arr.optJSONObject(index);
+        if (obj != null) {
+            return obj.optString("pkg", "").trim();
+        }
+        return sanitizePackageEntry(arr.optString(index, ""));
+    }
+
+    private static String sanitizePackageEntry(String raw) {
+        if (raw == null) return "";
+        String trimmed = raw.trim();
+        if (trimmed.startsWith("{")) {
+            try {
+                return new JSONObject(trimmed).optString("pkg", "").trim();
+            } catch (Exception ignored) {
+                return "";
+            }
+        }
+        return trimmed;
     }
 
     public List<String> getDisabledPackages() {

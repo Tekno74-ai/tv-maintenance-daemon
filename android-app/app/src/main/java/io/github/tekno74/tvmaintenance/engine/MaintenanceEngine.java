@@ -3,10 +3,12 @@ package io.github.tekno74.tvmaintenance.engine;
 import android.content.Context;
 import android.util.Log;
 
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.regex.Pattern;
 
 import io.github.tekno74.tvmaintenance.adb.AdbSessionGuard;
 import io.github.tekno74.tvmaintenance.adb.LocalAdbClient;
@@ -16,11 +18,12 @@ import io.github.tekno74.tvmaintenance.telemetry.HomeAssistantClient;
 import io.github.tekno74.tvmaintenance.telemetry.MetricsCollector;
 
 /**
- * Module 5b (engine): Orchestrates dark-mode standby maintenance, selective background app stopping,
- * cache trimming, and on-demand AOT speed compilation via 127.0.0.1:5555.
+ * Module 5b (engine): Orchestrates dark-mode standby maintenance, gentle live trimming (UC5),
+ * batched background app stopping, cache trimming, ANR inspection, and on-demand AOT speed compilation.
  */
 public final class MaintenanceEngine {
     private static final String TAG = "TvMaintEngine";
+    private static final Pattern PKG_PATTERN = Pattern.compile("^[a-zA-Z0-9_.]+$");
 
     public static synchronized void runBootVerification(Context context, DaemonConfig config) {
         Log.i(TAG, "Running cold-boot verification (mode=" + config.getMode() + ")...");
@@ -30,12 +33,16 @@ public final class MaintenanceEngine {
         String statusMsg = "Boot verified (Direct Settings OK)";
         try (AdbSessionGuard ignored = new AdbSessionGuard(context, config.isStandaloneMode())) {
             LocalAdbClient adb = new LocalAdbClient(context, config.getAdbPort());
-            // Verify default launcher if configured
+            StringBuilder cmd = new StringBuilder();
             String launcher = config.getDefaultLauncher();
             if (launcher != null && launcher.contains("/")) {
-                adb.runShellCommand("cmd package set-home-activity --user 0 " + launcher, 10000);
+                cmd.append("cmd package set-home-activity --user 0 ").append(launcher).append("; ");
             }
-            statusMsg = "Boot verified (Loopback ADB + Launcher OK)";
+            enforceDisabledPackagesBatched(adb, config, cmd);
+            if (cmd.length() > 0) {
+                adb.runShellCommand(cmd.toString(), 12000);
+            }
+            statusMsg = "Boot verified (Loopback ADB + Launcher + Bloat Shield OK)";
         } catch (Exception e) {
             Log.w(TAG, "Loopback ADB check during boot skipped/failed: " + e.getMessage());
             statusMsg = "Boot verified (Direct Settings OK; ADB: " + e.getMessage() + ")";
@@ -44,8 +51,39 @@ public final class MaintenanceEngine {
         MetricsCollector.SystemSnapshot after = MetricsCollector.collect(context);
         HomeAssistantClient.publishStatus(
                 context, config, "BOOT_COMPLETED", statusMsg,
-                before.memAvailableMb, after.memAvailableMb, 0, 0
+                before.memAvailableMb, after.memAvailableMb, 0, 0, 0
         );
+    }
+
+    /**
+     * UC5: Gentle background cache trim + fstrim during prolonged active playback (>60 min).
+     * Never force-stops apps and never runs CPU-heavy AOT compilation while the user is watching TV.
+     */
+    public static synchronized void runLiveTrim(
+            Context context,
+            DaemonConfig config,
+            String foregroundPkg
+    ) {
+        MetricsCollector.SystemSnapshot before = MetricsCollector.collect(context);
+        Log.i(TAG, "Running gentle UC5 Live Trim (foreground=" + foregroundPkg
+                + ", RAM before=" + before.memAvailableMb + " MB)...");
+        SafetyInvariants.enforceDirectSettings(context, config);
+
+        String statusMsg;
+        try (AdbSessionGuard ignored = new AdbSessionGuard(context, config.isStandaloneMode())) {
+            LocalAdbClient adb = new LocalAdbClient(context, config.getAdbPort());
+            adb.runShellCommand("pm trim-caches 4096M; sm fstrim 2>/dev/null", 15000);
+            MetricsCollector.SystemSnapshot after = MetricsCollector.collect(context);
+            long freed = Math.max(0L, after.memAvailableMb - before.memAvailableMb);
+            statusMsg = "Live-trim OK (freed=" + freed + " MB, fg=" + foregroundPkg + ")";
+            Log.i(TAG, "Finished UC5 Live Trim: " + statusMsg + " | RAM after=" + after.memAvailableMb + " MB");
+            HomeAssistantClient.publishStatus(
+                    context, config, "LIVE_TRIM", statusMsg,
+                    before.memAvailableMb, after.memAvailableMb, 0, 0, 0
+            );
+        } catch (Exception e) {
+            Log.w(TAG, "UC5 Live Trim failed: " + e.getMessage());
+        }
     }
 
     public static synchronized void runStandbyMaintenance(
@@ -73,57 +111,66 @@ public final class MaintenanceEngine {
 
         int stoppedCount = 0;
         int compiledCount = 0;
+        int freshAnrs = 0;
         String statusMsg;
 
         // Step 2: Open ephemeral loopback ADB session (closes port 5555 automatically in standalone mode)
         try (AdbSessionGuard ignored = new AdbSessionGuard(context, config.isStandaloneMode())) {
             LocalAdbClient adb = new LocalAdbClient(context, config.getAdbPort());
+            List<String> coreApps = config.getCoreApps();
 
-            // 2a. Enforce disabled bloatware / DVB-tuner lock (Invariant 4)
-            for (String disabledPkg : config.getDisabledPackages()) {
-                if (abortSignal.get()) break;
-                if (!SafetyInvariants.isProtectedPackage(disabledPkg, config)) {
-                    adb.runShellCommand("pm disable-user --user 0 " + disabledPkg + " 2>/dev/null", 8000);
-                }
-            }
+            // 2a. Batch bloatware verification (using pm list packages -d -u), selective force-stop,
+            // cache trim, fstrim, and recent ANR count in minimal shell roundtrips.
+            StringBuilder batchCmd = new StringBuilder();
+            enforceDisabledPackagesBatched(adb, config, batchCmd);
 
-            // 2b. Selectively force-stop background streaming apps (only if screen is OFF or manual test)
             if (config.isForceStopBackgroundApps() && !before.interactive) {
-                StringBuilder stopBatch = new StringBuilder();
-                for (String pkg : config.getCoreApps()) {
-                    if (!SafetyInvariants.isProtectedPackage(pkg, config)) {
-                        stopBatch.append("am force-stop ").append(pkg).append("; ");
+                for (String pkg : coreApps) {
+                    if (isValidPackage(pkg) && !SafetyInvariants.isProtectedPackage(pkg, config)) {
+                        batchCmd.append("am force-stop ").append(pkg).append("; ");
                         stoppedCount++;
                     }
                 }
-                if (stopBatch.length() > 0 && !abortSignal.get()) {
-                    adb.runShellCommand(stopBatch.toString(), 15000);
+            }
+
+            if (!abortSignal.get()) {
+                batchCmd.append("pm trim-caches 4096M >/dev/null 2>&1; sm fstrim 2>/dev/null; ");
+                batchCmd.append("echo ANR_COUNT=$(find /data/anr -type f -mtime -1 2>/dev/null | wc -l)");
+                String batchOut = adb.runShellCommand(batchCmd.toString(), 25000);
+                freshAnrs = parseIntMarker(batchOut, "ANR_COUNT=");
+            }
+
+            // 2b. Single batched AOT check for all core_apps
+            Set<String> toCompile = new LinkedHashSet<>();
+            for (String dirtyPkg : dirtyQueue.getDirtyPackages()) {
+                if (isValidPackage(dirtyPkg)) {
+                    toCompile.add(dirtyPkg);
+                } else {
+                    dirtyQueue.markClean(dirtyPkg);
                 }
             }
 
-            // 2c. Trim caches and fstrim flash storage
-            if (!abortSignal.get()) {
-                adb.runShellCommand("pm trim-caches 4096M; sm fstrim 2>/dev/null", 20000);
-            }
-
-            // 2d. Check which core_apps need AOT speed compilation (dirty queue + uncompiled inspection)
-            Set<String> toCompile = new LinkedHashSet<>(dirtyQueue.getDirtyPackages());
-            List<String> coreApps = config.getCoreApps();
-            for (String pkg : coreApps) {
-                if (abortSignal.get()) break;
-                if (toCompile.contains(pkg)) continue;
-                String dump = adb.runShellCommand(
-                        "dumpsys package " + pkg + " | grep -E 'status=speed|Unable to find package'", 8000);
-                if (dump.isEmpty()) {
-                    // Package is installed but not compiled with status=speed
-                    String exists = adb.runShellCommand("pm path " + pkg, 5000);
-                    if (exists.startsWith("package:")) {
-                        toCompile.add(pkg);
+            if (!abortSignal.get() && !coreApps.isEmpty()) {
+                StringBuilder aotCheck = new StringBuilder("for p in");
+                for (String pkg : coreApps) {
+                    if (isValidPackage(pkg) && !toCompile.contains(pkg)) {
+                        aotCheck.append(" ").append(pkg);
+                    }
+                }
+                aotCheck.append("; do pm path \"$p\" >/dev/null 2>&1 || continue; "
+                        + "dumpsys package \"$p\" | grep -Fq '[status=speed]' || echo \"$p\"; done");
+                String missingAot = adb.runShellCommand(aotCheck.toString(), 15000);
+                if (!missingAot.isEmpty()) {
+                    for (String line : missingAot.split("\\r?\\n")) {
+                        String cand = line.trim();
+                        if (isValidPackage(cand)) {
+                            toCompile.add(cand);
+                        }
                     }
                 }
             }
 
-            // 2e. Compile dirty/uncompiled packages with cmd package compile -m speed
+            // 2c. Compile dirty/uncompiled packages with cmd package compile -m speed
             for (String pkg : toCompile) {
                 if (abortSignal.get()) {
                     Log.i(TAG, "Aborting AOT compilation early because TV woke up.");
@@ -137,7 +184,8 @@ public final class MaintenanceEngine {
                 }
             }
 
-            statusMsg = "OK (Trimmed caches, stopped=" + stoppedCount + ", AOT compiled=" + compiledCount + ")";
+            statusMsg = "OK (Trimmed caches, stopped=" + stoppedCount
+                    + ", AOT compiled=" + compiledCount + ", ANR=" + freshAnrs + ")";
         } catch (Exception e) {
             Log.e(TAG, "Standby maintenance error: " + e.getMessage());
             statusMsg = "Error: " + e.getMessage();
@@ -154,7 +202,52 @@ public final class MaintenanceEngine {
                 before.memAvailableMb,
                 after.memAvailableMb,
                 stoppedCount,
-                compiledCount
+                compiledCount,
+                freshAnrs
         );
+    }
+
+    private static void enforceDisabledPackagesBatched(LocalAdbClient adb, DaemonConfig config, StringBuilder outCmd) {
+        List<String> desiredDisabled = config.getDisabledPackages();
+        if (desiredDisabled.isEmpty()) return;
+
+        Set<String> alreadyDisabled = new HashSet<>();
+        try {
+            String raw = adb.runShellCommand("pm list packages -d -u", 8000);
+            for (String line : raw.split("\\r?\\n")) {
+                String trimmed = line.trim();
+                if (trimmed.startsWith("package:")) {
+                    alreadyDisabled.add(trimmed.substring("package:".length()).trim());
+                }
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "Could not list disabled packages: " + e.getMessage());
+        }
+
+        for (String pkg : desiredDisabled) {
+            if (isValidPackage(pkg)
+                    && !SafetyInvariants.isProtectedPackage(pkg, config)
+                    && !alreadyDisabled.contains(pkg)) {
+                outCmd.append("pm disable-user --user 0 ").append(pkg).append(" >/dev/null 2>&1; ");
+            }
+        }
+    }
+
+    private static boolean isValidPackage(String pkg) {
+        return pkg != null && !pkg.isEmpty() && PKG_PATTERN.matcher(pkg).matches();
+    }
+
+    private static int parseIntMarker(String text, String marker) {
+        if (text == null || text.isEmpty()) return 0;
+        for (String line : text.split("\\r?\\n")) {
+            String trimmed = line.trim();
+            if (trimmed.startsWith(marker)) {
+                try {
+                    return Integer.parseInt(trimmed.substring(marker.length()).trim());
+                } catch (NumberFormatException ignored) {
+                }
+            }
+        }
+        return 0;
     }
 }
