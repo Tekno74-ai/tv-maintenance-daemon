@@ -140,38 +140,41 @@ public final class WidgetCardProvider extends ContentProvider {
             }
         }
 
-        // Background gradient
+        // Refined Nordic frosted-slate gradient background (matches Projectivy aesthetic)
         Paint bgPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         bgPaint.setShader(new LinearGradient(
                 0, 0, w, h,
-                Color.parseColor("#0F172A"),
-                Color.parseColor("#1E293B"),
+                Color.parseColor("#161E2E"),
+                Color.parseColor("#1F2A3E"),
                 Shader.TileMode.CLAMP));
         RectF fullRect = newRect(0, 0, w, h);
         c.drawRoundRect(fullRect, 28f, 28f, bgPaint);
 
-        // Top accent bar
+        // Subtle glass border
+        Paint borderPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        borderPaint.setStyle(Paint.Style.STROKE);
+        borderPaint.setStrokeWidth(2.5f);
+        borderPaint.setColor(Color.argb(38, 255, 255, 255));
+        c.drawRoundRect(newRect(1.5f, 1.5f, w - 1.5f, h - 1.5f), 27f, 27f, borderPaint);
+
+        // Status dot + clean badge text (no loud neon stripe)
         Paint accentPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         accentPaint.setColor(accentColor);
-        c.drawRoundRect(newRect(0, 0, w, 12), 6f, 6f, accentPaint);
-
-        // Badge pill
-        Paint pillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        pillPaint.setColor(Color.argb(45, Color.red(accentColor), Color.green(accentColor), Color.blue(accentColor)));
-        c.drawRoundRect(newRect(36, 36, w - 130, 86), 14f, 14f, pillPaint);
+        c.drawCircle(48f, 58f, 8f, accentPaint);
 
         Paint badgeText = new Paint(Paint.ANTI_ALIAS_FLAG);
-        badgeText.setColor(accentColor);
-        badgeText.setTextSize(21f);
-        badgeText.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.BOLD));
-        c.drawText(badge, 54, 69, badgeText);
+        badgeText.setColor(Color.argb(220, 226, 232, 240));
+        badgeText.setTextSize(20f);
+        badgeText.setTypeface(Typeface.create("sans-serif-medium", Typeface.BOLD));
+        c.drawText(badge, 68, 65, badgeText);
 
-        // Draw Wahren Coat of Arms in top-right corner of card
+        // Draw Wahren Coat of Arms subtly in top-right corner of card
         try {
             Bitmap crest = BitmapFactory.decodeResource(ctx.getResources(), R.drawable.wahren_crest);
             if (crest != null) {
-                RectF crestDst = newRect(w - 110, 26, w - 34, 128);
+                RectF crestDst = newRect(w - 92, 26, w - 34, 104);
                 Paint bmpPaint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
+                bmpPaint.setAlpha(220);
                 c.drawBitmap(crest, null, crestDst, bmpPaint);
                 crest.recycle();
             }
@@ -183,28 +186,28 @@ public final class WidgetCardProvider extends ContentProvider {
         headText.setColor(Color.parseColor("#F8FAFC"));
         headText.setTextSize(62f);
         headText.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.BOLD));
-        c.drawText(headline, 40, 172, headText);
+        c.drawText(headline, 40, 174, headText);
 
         // Subline 1
         Paint sub1Paint = new Paint(Paint.ANTI_ALIAS_FLAG);
         sub1Paint.setColor(Color.parseColor("#E2E8F0"));
-        sub1Paint.setTextSize(26f);
+        sub1Paint.setTextSize(25f);
         sub1Paint.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.NORMAL));
         c.drawText(subline1, 40, 228, sub1Paint);
 
         // Subline 2
         Paint sub2Paint = new Paint(Paint.ANTI_ALIAS_FLAG);
         sub2Paint.setColor(Color.parseColor("#94A3B8"));
-        sub2Paint.setTextSize(23f);
-        c.drawText(subline2, 40, 270, sub2Paint);
+        sub2Paint.setTextSize(22f);
+        c.drawText(subline2, 40, 268, sub2Paint);
 
-        // Progress / Gauge track at bottom
+        // Sleek minimal progress indicator at bottom
         Paint trackPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        trackPaint.setColor(Color.parseColor("#334155"));
-        c.drawRoundRect(newRect(40, 306, w - 40, 324), 9f, 9f, trackPaint);
+        trackPaint.setColor(Color.argb(45, 255, 255, 255));
+        c.drawRoundRect(newRect(40, 312, w - 40, 322), 5f, 5f, trackPaint);
 
         float fillW = Math.max(24f, (w - 80) * barRatio);
-        c.drawRoundRect(newRect(40, 306, 40 + fillW, 324), 9f, 9f, accentPaint);
+        c.drawRoundRect(newRect(40, 312, 40 + fillW, 322), 5f, 5f, accentPaint);
 
         return bmp;
     }

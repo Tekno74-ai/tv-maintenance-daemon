@@ -117,6 +117,9 @@ public final class SmartHomeData {
         // 6. Knitting Light Mode (Lisa)
         public boolean knittingLightOn = false;
 
+        // 7. Cleaning Light Mode
+        public boolean cleaningLightOn = false;
+
         public long updatedEpochMs = 0L;
 
         public boolean isSmillaOut() {
@@ -391,6 +394,14 @@ public final class SmartHomeData {
             if (knitObj != null) {
                 String kState = optValidState(knitObj, "off");
                 snap.knittingLightOn = "on".equalsIgnoreCase(kState);
+            }
+
+            // Cleaning Light Mode
+            String cleanEntity = config.getCleaningEntityId();
+            JSONObject cleanObj = fetchEntity(haUrl, haToken, cleanEntity);
+            if (cleanObj != null) {
+                String cState = optValidState(cleanObj, "off");
+                snap.cleaningLightOn = "on".equalsIgnoreCase(cState);
             }
 
             snap.updatedEpochMs = wallNow;
@@ -890,6 +901,7 @@ public final class SmartHomeData {
                 .putInt("wifiClients", s.wifiClients)
                 .putInt("lanClients", s.lanClients)
                 .putBoolean("knittingLightOn", s.knittingLightOn)
+                .putBoolean("cleaningLightOn", s.cleaningLightOn)
                 .putLong("updatedEpochMs", s.updatedEpochMs)
                 .apply();
     }
@@ -922,6 +934,38 @@ public final class SmartHomeData {
     }
 
     /**
+     * Toggles the "Städning" lighting mode in Home Assistant.
+     */
+    public static synchronized boolean toggleCleaningLight(Context context, DaemonConfig config) {
+        Snapshot snap = loadCached(context);
+        boolean nextState = !snap.cleaningLightOn;
+        snap.cleaningLightOn = nextState;
+        saveCached(context, snap);
+
+        String haUrl = config.getHaUrl();
+        String haToken = config.getHaToken();
+        String entityId = config.getCleaningEntityId();
+        if (haUrl == null || haUrl.isEmpty() || haToken == null || haToken.isEmpty()) {
+            return nextState;
+        }
+
+        String stateStr = nextState ? "on" : "off";
+        String baseUrl = haUrl.replaceAll("/+$", "");
+
+        try {
+            String service = nextState ? "turn_on" : "turn_off";
+            JSONObject svcBody = new JSONObject();
+            svcBody.put("entity_id", entityId);
+            postHaJson(baseUrl + "/api/services/input_boolean/" + service, haToken, svcBody.toString());
+
+            Log.i(TAG, "Toggled Städning (" + entityId + ") -> " + stateStr.toUpperCase(Locale.ROOT));
+        } catch (Exception e) {
+            Log.w(TAG, "Failed to toggle Städning in HA: " + e.getMessage());
+        }
+        return nextState;
+    }
+
+    /**
      * Toggles the "Stickning" lighting mode in Home Assistant.
      */
     public static synchronized boolean toggleKnittingLight(Context context, DaemonConfig config) {
@@ -941,19 +985,10 @@ public final class SmartHomeData {
         String baseUrl = haUrl.replaceAll("/+$", "");
 
         try {
-            JSONObject stateBody = new JSONObject();
-            stateBody.put("state", stateStr);
-            JSONObject attrs = new JSONObject();
-            attrs.put("friendly_name", "Ljusläge: Stickning (Lisa)");
-            attrs.put("icon", "mdi:yarn");
-            attrs.put("triggered_by", "Philips Android TV Remote");
-            stateBody.put("attributes", attrs);
-            postHaJson(baseUrl + "/api/states/" + entityId, haToken, stateBody.toString());
-
             String service = nextState ? "turn_on" : "turn_off";
             JSONObject svcBody = new JSONObject();
             svcBody.put("entity_id", entityId);
-            postHaJson(baseUrl + "/api/services/homeassistant/" + service, haToken, svcBody.toString());
+            postHaJson(baseUrl + "/api/services/input_boolean/" + service, haToken, svcBody.toString());
 
             JSONObject evBody = new JSONObject();
             evBody.put("entity_id", entityId);

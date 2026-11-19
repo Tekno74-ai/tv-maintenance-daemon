@@ -12,7 +12,9 @@ import android.os.Looper;
 import android.os.PowerManager;
 import android.provider.Settings;
 import android.text.TextUtils;
+import android.util.DisplayMetrics;
 import android.util.Log;
+import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
 import android.view.WindowManager;
@@ -27,9 +29,12 @@ import io.github.tekno74.tvmaintenance.config.DaemonConfig;
 import io.github.tekno74.tvmaintenance.engine.SafetyInvariants;
 
 /**
- * Module 7d (widgets): Renders the compact "Villa Wahren Live" widget strip at the top-left
- * of the Projectivy Home screen (x = 76..1436, y = 34..154, vertical center y = 94),
- * aligned directly to the left of Projectivy's [Ethernet][Settings][21:40] clock bar (x = 1463..1808, y = 54..134).
+ * Module 7d (widgets): Renders a sleek, responsive, Projectivy-matched "Frosted Glass"
+ * lightweight status pill at the top-left of the Home screen (using dp + DisplayMetrics,
+ * zero hardcoded pixel dimensions), aligned vertically with Projectivy's clock bar.
+ *
+ * The full interactive 6-card row is published natively to Projectivy's own layout manager
+ * as an Android TV Home Channel ("Villa Wahren Live") via HomeChannelPublisher.
  */
 public final class HomeHudOverlayController {
     private static final String TAG = "TvMaintHudOverlay";
@@ -39,17 +44,10 @@ public final class HomeHudOverlayController {
     private final WindowManager windowManager;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
-    // Style A (Default): Compact Top-Left 5-Card Row with Wahren Coat of Arms (left of 21:40 clock)
-    private LinearLayout cardsRow;
-    private CardViews cardSmilla;
-    private CardViews cardElpris;
-    private CardViews cardKlimat;
-    private CardViews cardVarmvatten;
-    private CardViews cardInternet;
-    private boolean cardsAdded = false;
-
-    // Style B (Optional single-line pill mode)
     private LinearLayout topBar;
+    private View smillaDot;
+    private TextView pillKnitting;
+    private View knittingDivider;
     private TextView pillSmilla;
     private TextView pillElpris;
     private TextView pillKlimat;
@@ -59,24 +57,6 @@ public final class HomeHudOverlayController {
 
     private String lastKnownForegroundPkg = "com.spocky.projengmenu";
     private String lastKnownForegroundClass = "";
-
-    private static final class CardViews {
-        final LinearLayout container;
-        final View accentLine;
-        final TextView badge;
-        final TextView value;
-        final TextView sub1;
-        final TextView sub2;
-
-        CardViews(LinearLayout container, View accentLine, TextView badge, TextView value, TextView sub1, TextView sub2) {
-            this.container = container;
-            this.accentLine = accentLine;
-            this.badge = badge;
-            this.value = value;
-            this.sub1 = sub1;
-            this.sub2 = sub2;
-        }
-    }
 
     public HomeHudOverlayController(Context context, DaemonConfig config) {
         this.context = context.getApplicationContext();
@@ -110,18 +90,6 @@ public final class HomeHudOverlayController {
                     return;
                 }
 
-                // 1. Compact 5-Card Dashboard Row (left of the 21:40 clock at the same height)
-                if (config.isHomeChannelEnabled()) {
-                    ensureCardsRowCreated();
-                    bindCardsRow(snap);
-                    if (cardsRow.getVisibility() != View.VISIBLE) {
-                        cardsRow.setVisibility(View.VISIBLE);
-                    }
-                } else if (cardsAdded && cardsRow != null) {
-                    cardsRow.setVisibility(View.GONE);
-                }
-
-                // 2. Optional Single-Line Pill Bar
                 if (config.isHudOverlayEnabled()) {
                     ensureTopBarCreated();
                     bindTopBar(snap);
@@ -137,52 +105,9 @@ public final class HomeHudOverlayController {
         });
     }
 
-    private void ensureCardsRowCreated() {
-        if (cardsAdded && cardsRow != null) return;
-
-        cardsRow = new LinearLayout(context);
-        cardsRow.setOrientation(LinearLayout.HORIZONTAL);
-        cardsRow.setGravity(Gravity.CENTER_VERTICAL);
-        cardsRow.setPadding(4, 4, 4, 4);
-
-        ImageView rowCrest = new ImageView(context);
-        rowCrest.setImageResource(R.drawable.wahren_crest);
-        rowCrest.setScaleType(ImageView.ScaleType.FIT_CENTER);
-        rowCrest.setAdjustViewBounds(true);
-        LinearLayout.LayoutParams rowCrestLp = new LinearLayout.LayoutParams(74, 100);
-        rowCrestLp.setMargins(0, 0, 12, 0);
-        rowCrest.setLayoutParams(rowCrestLp);
-        cardsRow.addView(rowCrest);
-
-        cardSmilla = createCardView();
-        cardElpris = createCardView();
-        cardKlimat = createCardView();
-        cardVarmvatten = createCardView();
-        cardInternet = createCardView();
-
-        cardsRow.addView(cardSmilla.container);
-        cardsRow.addView(cardElpris.container);
-        cardsRow.addView(cardKlimat.container);
-        cardsRow.addView(cardVarmvatten.container);
-        cardsRow.addView(cardInternet.container);
-
-        // Placed at x=76, y=34, width=1360 -> spans [76..1436, 34..154], centered vertically at y=94
-        // right to the left of Projectivy's [Ethernet][Settings][21:40] clock at [1463..1808, 54..134]!
-        WindowManager.LayoutParams lp = new WindowManager.LayoutParams(
-                1360,
-                WindowManager.LayoutParams.WRAP_CONTENT,
-                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
-                        | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
-                        | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
-                PixelFormat.TRANSLUCENT
-        );
-        lp.gravity = Gravity.TOP | Gravity.START;
-        lp.x = 76;
-        lp.y = 34;
-
-        windowManager.addView(cardsRow, lp);
-        cardsAdded = true;
+    private int dp(float value) {
+        DisplayMetrics dm = context.getResources().getDisplayMetrics();
+        return Math.round(TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, value, dm));
     }
 
     private void ensureTopBarCreated() {
@@ -191,22 +116,42 @@ public final class HomeHudOverlayController {
         topBar = new LinearLayout(context);
         topBar.setOrientation(LinearLayout.HORIZONTAL);
         topBar.setGravity(Gravity.CENTER_VERTICAL);
-        topBar.setPadding(20, 10, 24, 10);
+        topBar.setPadding(dp(14), dp(8), dp(18), dp(8));
 
+        // Projectivy-matched soft frosted glass capsule (low-opacity dark glass + subtle light edge)
         GradientDrawable barBg = new GradientDrawable();
-        barBg.setColor(Color.argb(220, 15, 23, 42));
-        barBg.setCornerRadius(28f);
-        barBg.setStroke(2, Color.argb(140, 56, 189, 248));
+        barBg.setColor(Color.argb(150, 18, 24, 34));
+        barBg.setCornerRadius(dp(24));
+        barBg.setStroke(dp(1), Color.argb(46, 255, 255, 255));
         topBar.setBackground(barBg);
 
+        // Wahren Coat of Arms integrated neatly inside the left end of the glass pill
         ImageView topCrest = new ImageView(context);
         topCrest.setImageResource(R.drawable.wahren_crest);
         topCrest.setScaleType(ImageView.ScaleType.FIT_CENTER);
         topCrest.setAdjustViewBounds(true);
-        LinearLayout.LayoutParams crestLp = new LinearLayout.LayoutParams(28, 38);
-        crestLp.setMargins(2, 0, 10, 0);
+        LinearLayout.LayoutParams crestLp = new LinearLayout.LayoutParams(dp(18), dp(24));
+        crestLp.setMargins(0, 0, dp(10), 0);
         topCrest.setLayoutParams(crestLp);
         topBar.addView(topCrest);
+
+        // Optional Knitting mode badge (only visible when active)
+        pillKnitting = createPillView();
+        pillKnitting.setText("Stickning PÅ");
+        pillKnitting.setTextColor(Color.parseColor("#FDE047"));
+        pillKnitting.setVisibility(View.GONE);
+        topBar.addView(pillKnitting);
+
+        knittingDivider = createDivider();
+        knittingDivider.setVisibility(View.GONE);
+        topBar.addView(knittingDivider);
+
+        // Smilla status dot + text
+        smillaDot = new View(context);
+        LinearLayout.LayoutParams dotLp = new LinearLayout.LayoutParams(dp(7), dp(7));
+        dotLp.setMargins(dp(2), 0, dp(6), 0);
+        smillaDot.setLayoutParams(dotLp);
+        topBar.addView(smillaDot);
 
         pillSmilla = createPillView();
         pillElpris = createPillView();
@@ -224,9 +169,10 @@ public final class HomeHudOverlayController {
         topBar.addView(createDivider());
         topBar.addView(pillInternet);
 
+        // Responsive WRAP_CONTENT pill aligned with Android TV 5% left overscan & Projectivy's clock center
         WindowManager.LayoutParams lp = new WindowManager.LayoutParams(
-                1280,
-                64,
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.WRAP_CONTENT,
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
                         | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
@@ -234,182 +180,89 @@ public final class HomeHudOverlayController {
                 PixelFormat.TRANSLUCENT
         );
         lp.gravity = Gravity.TOP | Gravity.START;
-        lp.x = 76;
-        lp.y = 62;
+        lp.x = dp(38);
+        lp.y = dp(28);
 
         windowManager.addView(topBar, lp);
         topBarAdded = true;
     }
 
-    private CardViews createCardView() {
-        LinearLayout card = new LinearLayout(context);
-        card.setOrientation(LinearLayout.VERTICAL);
-        card.setPadding(14, 9, 14, 9);
-
-        GradientDrawable bg = new GradientDrawable(
-                GradientDrawable.Orientation.TOP_BOTTOM,
-                new int[]{Color.argb(225, 15, 23, 42), Color.argb(235, 30, 41, 59)}
-        );
-        bg.setCornerRadius(13f);
-        bg.setStroke(2, Color.argb(150, 51, 65, 85));
-        card.setBackground(bg);
-
-        LinearLayout.LayoutParams cardLp = new LinearLayout.LayoutParams(238, LinearLayout.LayoutParams.WRAP_CONTENT);
-        cardLp.setMargins(5, 0, 5, 0);
-        card.setLayoutParams(cardLp);
-
-        View accent = new View(context);
-        LinearLayout.LayoutParams accentLp = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, 3);
-        accentLp.setMargins(0, 0, 0, 5);
-        accent.setLayoutParams(accentLp);
-        card.addView(accent);
-
-        TextView badge = new TextView(context);
-        badge.setTextSize(8.5f);
-        badge.setTypeface(Typeface.create("sans-serif-medium", Typeface.BOLD));
-        badge.setSingleLine(true);
-        badge.setEllipsize(TextUtils.TruncateAt.END);
-        card.addView(badge);
-
-        TextView value = new TextView(context);
-        value.setTextColor(Color.parseColor("#F8FAFC"));
-        value.setTextSize(14.5f);
-        value.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
-        value.setPadding(0, 1, 0, 1);
-        value.setSingleLine(true);
-        value.setEllipsize(TextUtils.TruncateAt.END);
-        card.addView(value);
-
-        TextView sub1 = new TextView(context);
-        sub1.setTextColor(Color.parseColor("#CBD5E1"));
-        sub1.setTextSize(9.5f);
-        sub1.setSingleLine(true);
-        sub1.setEllipsize(TextUtils.TruncateAt.END);
-        card.addView(sub1);
-
-        TextView sub2 = new TextView(context);
-        sub2.setTextColor(Color.parseColor("#94A3B8"));
-        sub2.setTextSize(9.0f);
-        sub2.setPadding(0, 1, 0, 0);
-        sub2.setSingleLine(true);
-        sub2.setEllipsize(TextUtils.TruncateAt.END);
-        card.addView(sub2);
-
-        return new CardViews(card, accent, badge, value, sub1, sub2);
-    }
-
     private TextView createPillView() {
         TextView tv = new TextView(context);
-        tv.setTextColor(Color.parseColor("#F8FAFC"));
-        tv.setTextSize(12.5f);
-        tv.setTypeface(Typeface.create("sans-serif-medium", Typeface.BOLD));
+        tv.setTextColor(Color.parseColor("#F1F5F9"));
+        tv.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f);
+        tv.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
         tv.setSingleLine(true);
         tv.setEllipsize(TextUtils.TruncateAt.END);
-        tv.setPadding(10, 2, 10, 2);
+        tv.setShadowLayer(2f, 0f, 1f, Color.argb(140, 0, 0, 0));
+        tv.setPadding(dp(2), 0, dp(2), 0);
         return tv;
     }
 
     private View createDivider() {
-        TextView div = new TextView(context);
-        div.setText("•");
-        div.setTextColor(Color.parseColor("#475569"));
-        div.setTextSize(13f);
-        div.setSingleLine(true);
-        div.setPadding(4, 0, 4, 0);
-        return div;
+        View line = new View(context);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(1), dp(13));
+        lp.setMargins(dp(10), 0, dp(10), 0);
+        line.setLayoutParams(lp);
+        line.setBackgroundColor(Color.argb(50, 255, 255, 255));
+        return line;
+    }
+
+    private void setDotColor(View dot, int color) {
+        GradientDrawable circle = new GradientDrawable();
+        circle.setShape(GradientDrawable.OVAL);
+        circle.setColor(color);
+        dot.setBackground(circle);
     }
 
     private void bindTopBar(SmartHomeData.Snapshot s) {
         if (topBar == null) return;
 
-        boolean out = s.isSmillaOut();
-        String knitPrefix = s.knittingLightOn ? "🧶 Stickning: PÅ 💡 • " : "";
-        pillSmilla.setText(knitPrefix + (out
-                ? "🐱 Smilla: UTE (" + s.smillaPassages + ")"
-                : "🐱 Smilla: Inne (" + s.smillaPassages + ")"));
-        pillSmilla.setTextColor(s.knittingLightOn
-                ? Color.parseColor("#FDE047")
-                : (out ? Color.parseColor("#FBBF24") : Color.parseColor("#4ADE80")));
+        // Knitting badge
+        int knitVis = s.knittingLightOn ? View.VISIBLE : View.GONE;
+        pillKnitting.setVisibility(knitVis);
+        knittingDivider.setVisibility(knitVis);
 
-        pillElpris.setText(String.format(Locale.US, "⚡ %d öre (%.1f kW)", s.priceOre, s.currentPowerW / 1000.0));
+        // 1. Smilla (clean dot + short text)
+        boolean out = s.isSmillaOut();
+        int smillaColor = out ? Color.parseColor("#FBBF24") : Color.parseColor("#4ADE80");
+        setDotColor(smillaDot, smillaColor);
+        pillSmilla.setText(out
+                ? "Smilla Ute (" + s.smillaHoursOut + ")"
+                : "Smilla Inne (" + s.smillaHoursOut + ")");
+        pillSmilla.setTextColor(Color.parseColor("#F8FAFC"));
+
+        // 2. Electricity price & power
+        pillElpris.setText(String.format(Locale.US, "%d öre · %.1f kW", s.priceOre, s.currentPowerW / 1000.0));
         if (s.priceOre >= 180) {
-            pillElpris.setTextColor(Color.parseColor("#FB7185"));
+            pillElpris.setTextColor(Color.parseColor("#FDA4AF")); // Soft Rose
         } else if (s.priceOre >= 120) {
-            pillElpris.setTextColor(Color.parseColor("#FBBF24"));
+            pillElpris.setTextColor(Color.parseColor("#FDE68A")); // Soft Amber
         } else {
-            pillElpris.setTextColor(Color.parseColor("#34D399"));
+            pillElpris.setTextColor(Color.parseColor("#6EE7B7")); // Soft Emerald
         }
 
-        pillKlimat.setText("🌡️ Inne " + s.indoorTempC + "°C • Ute " + s.outdoorTempC + "°C");
-        pillKlimat.setTextColor(Color.parseColor("#38BDF8"));
+        // 3. Climate (Indoor / Outdoor)
+        pillKlimat.setText(s.indoorTempC + "° / " + s.outdoorTempC + "°");
+        pillKlimat.setTextColor(Color.parseColor("#BAE6FD"));
 
-        pillVarmvatten.setText("🚿 VV " + s.waterTempC + "°C (" + s.waterVolume40cL + " L)");
-        pillVarmvatten.setTextColor(Color.parseColor("#FB923C"));
+        // 4. Water Heater
+        String waterShort = s.waterTempC;
+        try {
+            waterShort = String.format(Locale.US, "%.0f", Double.parseDouble(s.waterTempC));
+        } catch (Exception ignored) {
+        }
+        pillVarmvatten.setText("VV " + waterShort + "° · " + s.waterVolume40cL + " L");
+        pillVarmvatten.setTextColor(Color.parseColor("#FED7AA"));
 
-        pillInternet.setText(String.format(Locale.US, "🌐 ↓ %.1f Mbit/s • %d Wi-Fi", s.tvDownMbps, s.wifiClients));
-        pillInternet.setTextColor(Color.parseColor("#C084FC"));
-    }
-
-    private void bindCardsRow(SmartHomeData.Snapshot s) {
-        if (cardsRow == null) return;
-
-        // 1. Smilla (+ Stickbelysning indicator when active)
-        boolean out = s.isSmillaOut();
-        int smillaColor = s.knittingLightOn ? Color.parseColor("#FDE047")
-                : (out ? Color.parseColor("#F59E0B") : Color.parseColor("#22C55E"));
-        cardSmilla.accentLine.setBackgroundColor(smillaColor);
-        cardSmilla.badge.setText(s.knittingLightOn ? "🧶 STICKNING PÅ • 🐱 SMILLA" : "🐱 SMILLA STATUS");
-        cardSmilla.badge.setTextColor(smillaColor);
-        cardSmilla.value.setText(out ? "UTE NU" : "INNE HEMMA");
-        cardSmilla.sub1.setText("Ute: " + s.smillaHoursOut + " • " + s.smillaPassages);
-        cardSmilla.sub2.setText("Kattlucka batteri: " + s.flapBattery);
-
-        // 2. Elpris & Effekt
-        int elColor = s.priceOre >= 180 ? Color.parseColor("#F43F5E")
-                : (s.priceOre >= 120 ? Color.parseColor("#F59E0B") : Color.parseColor("#10B981"));
-        cardElpris.accentLine.setBackgroundColor(elColor);
-        cardElpris.badge.setText("⚡ ELPRIS & EFFEKT");
-        cardElpris.badge.setTextColor(elColor);
-        cardElpris.value.setText(s.priceOre + " öre/kWh");
-        cardElpris.sub1.setText(String.format(Locale.US, "Nu: %.2f kW • Idag: %s",
-                s.currentPowerW / 1000.0, s.dailyCostSek));
-        cardElpris.sub2.setText("Min " + s.priceMinOre + " • Snitt " + s.priceAvgOre + " • Max " + s.priceMaxOre);
-
-        // 3. Klimat
-        int klimColor = Color.parseColor("#38BDF8");
-        cardKlimat.accentLine.setBackgroundColor(klimColor);
-        cardKlimat.badge.setText("🌡️ TEMPERATURER");
-        cardKlimat.badge.setTextColor(klimColor);
-        cardKlimat.value.setText(s.indoorTempC + " °C inne");
-        cardKlimat.sub1.setText("Utomhus: " + s.outdoorTempC + " °C");
-        cardKlimat.sub2.setText("Övre hall: " + s.upperHallTempC + " °C");
-
-        // 4. Varmvattenberedare
-        int vvColor = Color.parseColor("#FB923C");
-        cardVarmvatten.accentLine.setBackgroundColor(vvColor);
-        cardVarmvatten.badge.setText("🚿 VARMVATTEN (IVT)");
-        cardVarmvatten.badge.setTextColor(vvColor);
-        cardVarmvatten.value.setText(s.waterTempC + " °C");
-        cardVarmvatten.sub1.setText("40°C-volym: " + s.waterVolume40cL + " liter");
-        cardVarmvatten.sub2.setText("Mål " + s.waterTargetC + " °C • " + s.waterStatus);
-
-        // 5. Internet & UniFi (Real-time WAN throughput + Wi-Fi clients, no NAS)
-        int netColor = Color.parseColor("#C084FC");
-        cardInternet.accentLine.setBackgroundColor(netColor);
-        cardInternet.badge.setText("🌐 INTERNET & WIFI");
-        cardInternet.badge.setTextColor(netColor);
-        cardInternet.value.setText(String.format(Locale.US, "↓ %.1f Mbit/s", s.tvDownMbps));
-        cardInternet.sub1.setText(String.format(Locale.US, "↑ %.1f Mbit/s • Ping %d ms", s.tvUpMbps, s.wanLatencyMs));
-        cardInternet.sub2.setText("Wi-Fi: " + s.wifiClients + " klienter • CPU " + s.ucgCpuPct.replace(" ", ""));
+        // 5. Internet & Wi-Fi
+        pillInternet.setText(String.format(Locale.US, "↓ %.1f Mbit/s · %d Wi-Fi", s.tvDownMbps, s.wifiClients));
+        pillInternet.setTextColor(Color.parseColor("#E9D5FF"));
     }
 
     public void hideOverlay() {
         if (topBarAdded && topBar != null && topBar.getVisibility() != View.GONE) {
             topBar.setVisibility(View.GONE);
-        }
-        if (cardsAdded && cardsRow != null && cardsRow.getVisibility() != View.GONE) {
-            cardsRow.setVisibility(View.GONE);
         }
     }
 
@@ -422,14 +275,6 @@ public final class HomeHudOverlayController {
                 }
                 topBarAdded = false;
                 topBar = null;
-            }
-            if (cardsAdded && cardsRow != null && windowManager != null) {
-                try {
-                    windowManager.removeViewImmediate(cardsRow);
-                } catch (Exception ignored) {
-                }
-                cardsAdded = false;
-                cardsRow = null;
             }
         });
     }

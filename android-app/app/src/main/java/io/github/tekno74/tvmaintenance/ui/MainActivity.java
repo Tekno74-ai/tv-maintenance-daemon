@@ -54,10 +54,13 @@ public final class MainActivity extends Activity {
 
     private TextView statusText;
     private Button btnKnitting;
+    private Button btnCleaning;
     private Button btnRunNow;
     private Button btnToggleMode;
     private Button btnToggleHud;
     private Button btnToggleCards;
+    private Button btnRefresh;
+    private LinearLayout buttonRow;
 
     private String selectedWidgetKey = "smilla";
     private SmartHomeData.Snapshot latestHomeSnap;
@@ -253,12 +256,22 @@ public final class MainActivity extends Activity {
         cardParams.setMargins(0, 0, 0, 14);
         root.addView(statusText, cardParams);
 
-        // 5. Bottom Control Buttons Row
-        LinearLayout buttonRow = new LinearLayout(this);
+        // 5. Bottom Control Buttons Row (even width, dark glass pills, high-contrast TV focus)
+        root.setClipChildren(false);
+        root.setClipToPadding(false);
+
+        buttonRow = new LinearLayout(this);
         buttonRow.setOrientation(LinearLayout.HORIZONTAL);
         buttonRow.setGravity(Gravity.CENTER);
+        buttonRow.setClipChildren(false);
+        buttonRow.setClipToPadding(false);
+        LinearLayout.LayoutParams btnRowLp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        );
+        buttonRow.setLayoutParams(btnRowLp);
 
-        btnKnitting = createTvButton("🧶 Stickbelysning");
+        btnKnitting = createTvButton("🧶 Stickning: AV");
         btnKnitting.setOnClickListener(v -> {
             btnKnitting.setText("🧶 Växlar...");
             new Thread(() -> {
@@ -271,31 +284,44 @@ public final class MainActivity extends Activity {
             }).start();
         });
 
-        btnRunNow = createTvButton("⚡ Optimera TV Nu");
+        btnCleaning = createTvButton("🧹 Städning: AV");
+        btnCleaning.setOnClickListener(v -> {
+            btnCleaning.setText("🧹 Växlar...");
+            new Thread(() -> {
+                SmartHomeData.toggleCleaningLight(getApplicationContext(), config);
+                SmartHomeData.Snapshot fresh = SmartHomeData.refresh(getApplicationContext(), config);
+                handler.post(() -> {
+                    latestHomeSnap = fresh;
+                    refreshStatus();
+                });
+            }).start();
+        });
+
+        btnRunNow = createTvButton("⚡ Optimera TV");
         btnRunNow.setOnClickListener(v -> {
-            btnRunNow.setText("Optimerar...");
+            btnRunNow.setText("⚡ Kör...");
             Intent runIntent = new Intent(this, WatcherService.class);
             runIntent.setAction(WatcherService.ACTION_MANUAL_RUN);
             startForegroundService(runIntent);
             handler.postDelayed(() -> {
-                btnRunNow.setText("⚡ Optimera TV Nu");
+                btnRunNow.setText("⚡ Optimera TV");
                 refreshStatus();
             }, 4000);
         });
 
-        btnToggleCards = createTvButton("Widget-rad: PÅ");
+        btnToggleCards = createTvButton("📺 Widgets: PÅ");
         btnToggleCards.setOnClickListener(v -> {
             config.setHomeChannelEnabled(!config.isHomeChannelEnabled());
             refreshStatus();
         });
 
-        btnToggleHud = createTvButton("Kompakt Rad: AV");
+        btnToggleHud = createTvButton("📊 HUD-rad: AV");
         btnToggleHud.setOnClickListener(v -> {
             config.setHudOverlayEnabled(!config.isHudOverlayEnabled());
             refreshStatus();
         });
 
-        btnToggleMode = createTvButton("Läge: PARALLEL");
+        btnToggleMode = createTvButton("⚙ PARALLEL");
         btnToggleMode.setOnClickListener(v -> {
             String nextMode = config.isStandaloneMode()
                     ? DaemonConfig.MODE_PARALLEL
@@ -304,10 +330,11 @@ public final class MainActivity extends Activity {
             refreshStatus();
         });
 
-        Button btnRefresh = createTvButton("🔄 Uppdatera");
+        btnRefresh = createTvButton("🔄 Uppdatera");
         btnRefresh.setOnClickListener(v -> triggerLiveRefresh());
 
         buttonRow.addView(btnKnitting);
+        buttonRow.addView(btnCleaning);
         buttonRow.addView(btnRunNow);
         buttonRow.addView(btnToggleCards);
         buttonRow.addView(btnToggleHud);
@@ -315,6 +342,7 @@ public final class MainActivity extends Activity {
         buttonRow.addView(btnRefresh);
         root.addView(buttonRow);
 
+        styleAllButtons();
         setContentView(root);
         handleIncomingIntent(getIntent());
     }
@@ -482,15 +510,74 @@ public final class MainActivity extends Activity {
         Button b = new Button(this);
         b.setText(label);
         b.setAllCaps(false);
-        b.setTextSize(13f);
-        b.setPadding(22, 12, 22, 12);
+        b.setTextSize(11.5f);
+        b.setSingleLine(true);
+        b.setEllipsize(TextUtils.TruncateAt.END);
+        b.setGravity(Gravity.CENTER);
+        b.setPadding(10, 12, 10, 12);
+        b.setFocusable(true);
+        b.setFocusableInTouchMode(true);
+        b.setStateListAnimator(null);
+
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                0,
                 LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
+                1f
         );
-        lp.setMargins(8, 0, 8, 0);
+        lp.setMargins(5, 4, 5, 4);
         b.setLayoutParams(lp);
+        b.setOnFocusChangeListener((v, hasFocus) -> styleAllButtons());
         return b;
+    }
+
+    private void styleTvButton(Button b, boolean active, int accentColor, int activeBgColor) {
+        if (b == null) return;
+        boolean focused = b.hasFocus();
+
+        GradientDrawable bg = new GradientDrawable(
+                GradientDrawable.Orientation.TOP_BOTTOM,
+                focused
+                        ? new int[]{Color.parseColor("#0284C7"), Color.parseColor("#1D4ED8")}
+                        : (active
+                            ? new int[]{Color.parseColor("#172536"), activeBgColor}
+                            : new int[]{Color.parseColor("#131C2E"), Color.parseColor("#1E293B")})
+        );
+        bg.setCornerRadius(12f);
+
+        if (focused) {
+            bg.setStroke(4, Color.parseColor("#F8FAFC"));
+            b.setTextColor(Color.parseColor("#FFFFFF"));
+            b.setTypeface(Typeface.DEFAULT_BOLD);
+            b.setScaleX(1.06f);
+            b.setScaleY(1.06f);
+            b.setElevation(12f);
+        } else if (active) {
+            bg.setStroke(2, accentColor);
+            b.setTextColor(accentColor);
+            b.setTypeface(Typeface.DEFAULT_BOLD);
+            b.setScaleX(1.0f);
+            b.setScaleY(1.0f);
+            b.setElevation(2f);
+        } else {
+            bg.setStroke(2, Color.parseColor("#334155"));
+            b.setTextColor(Color.parseColor("#CBD5E1"));
+            b.setTypeface(Typeface.DEFAULT);
+            b.setScaleX(1.0f);
+            b.setScaleY(1.0f);
+            b.setElevation(0f);
+        }
+        b.setBackground(bg);
+    }
+
+    private void styleAllButtons() {
+        SmartHomeData.Snapshot home = (latestHomeSnap != null) ? latestHomeSnap : SmartHomeData.loadCached(this);
+        styleTvButton(btnKnitting, home.knittingLightOn, Color.parseColor("#FDE047"), Color.parseColor("#3B2F0B"));
+        styleTvButton(btnCleaning, home.cleaningLightOn, Color.parseColor("#34D399"), Color.parseColor("#0D3329"));
+        styleTvButton(btnRunNow, false, Color.parseColor("#38BDF8"), Color.parseColor("#0F2942"));
+        styleTvButton(btnToggleCards, config != null && config.isHomeChannelEnabled(), Color.parseColor("#38BDF8"), Color.parseColor("#0F2942"));
+        styleTvButton(btnToggleHud, config != null && config.isHudOverlayEnabled(), Color.parseColor("#38BDF8"), Color.parseColor("#0F2942"));
+        styleTvButton(btnToggleMode, config != null && config.isStandaloneMode(), Color.parseColor("#A78BFA"), Color.parseColor("#2E1D4E"));
+        styleTvButton(btnRefresh, false, Color.parseColor("#38BDF8"), Color.parseColor("#0F2942"));
     }
 
     private void refreshStatus() {
@@ -516,10 +603,12 @@ public final class MainActivity extends Activity {
                 .append(HomeAssistantClient.getLastTelemetrySummary(this).replace("\n", "  |  "));
 
         statusText.setText(sb.toString());
-        btnKnitting.setText(home.knittingLightOn ? "🧶 Stickning: PÅ 💡" : "🧶 Stickning: AV 🌙");
-        btnToggleCards.setText(config.isHomeChannelEnabled() ? "Widget-rad: PÅ" : "Widget-rad: AV");
-        btnToggleHud.setText(config.isHudOverlayEnabled() ? "Kompakt Rad: PÅ" : "Kompakt Rad: AV");
-        btnToggleMode.setText(config.isStandaloneMode() ? "Läge: STANDALONE" : "Läge: PARALLEL");
+        btnKnitting.setText(home.knittingLightOn ? "🧶 Stickning: PÅ" : "🧶 Stickning: AV");
+        btnCleaning.setText(home.cleaningLightOn ? "🧹 Städning: PÅ" : "🧹 Städning: AV");
+        btnToggleCards.setText(config.isHomeChannelEnabled() ? "📺 Hem-kanal: PÅ" : "📺 Hem-kanal: AV");
+        btnToggleHud.setText(config.isHudOverlayEnabled() ? "📊 Topplist: PÅ" : "📊 Topplist: AV");
+        btnToggleMode.setText(config.isStandaloneMode() ? "⚙ STANDALONE" : "⚙ PARALLEL");
+        styleAllButtons();
     }
 
     private void bindWidgetCards(SmartHomeData.Snapshot s) {

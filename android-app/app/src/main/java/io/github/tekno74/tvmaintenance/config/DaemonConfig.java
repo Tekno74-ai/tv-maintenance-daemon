@@ -133,13 +133,16 @@ public final class DaemonConfig {
                 ed.putString("unifi_pass", json.optString("unifi_pass", ""));
             }
             if (json.has("enable_hud_overlay")) {
-                ed.putBoolean("enable_hud_overlay", json.optBoolean("enable_hud_overlay", false));
+                ed.putBoolean("enable_hud_overlay", json.optBoolean("enable_hud_overlay", true));
             }
             if (json.has("enable_home_channel")) {
                 ed.putBoolean("enable_home_channel", json.optBoolean("enable_home_channel", true));
             }
             if (json.has("knitting_entity_id")) {
                 ed.putString("knitting_entity_id", json.optString("knitting_entity_id", "input_boolean.stickbelysning"));
+            }
+            if (json.has("cleaning_entity_id")) {
+                ed.putString("cleaning_entity_id", json.optString("cleaning_entity_id", "input_boolean.ljuslage_stadning"));
             }
             if (json.has("core_apps")) {
                 JSONArray arr = json.getJSONArray("core_apps");
@@ -254,6 +257,10 @@ public final class DaemonConfig {
 
     public String getKnittingEntityId() {
         return prefs.getString("knitting_entity_id", "input_boolean.stickbelysning");
+    }
+
+    public String getCleaningEntityId() {
+        return prefs.getString("cleaning_entity_id", "input_boolean.ljuslage_stadning");
     }
 
     public List<String> getCoreApps() {
