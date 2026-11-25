@@ -2,6 +2,8 @@ package io.github.tekno74.tvmaintenance.engine;
 
 import android.content.ContentResolver;
 import android.content.Context;
+import android.content.pm.ApplicationInfo;
+import android.content.pm.PackageManager;
 import android.provider.Settings;
 import android.util.Log;
 
@@ -91,6 +93,18 @@ public final class SafetyInvariants {
         if (SELF_PACKAGE.equals(pkg)) return true;
         String launcherPkg = extractLauncherPackage(config.getDefaultLauncher());
         if (!launcherPkg.isEmpty() && launcherPkg.equals(pkg)) return true;
-        return "com.spocky.projengmenu".equals(pkg) || "com.gathin.tvhome".equals(pkg);
+        return "com.spocky.projengmenu".equals(pkg)
+                || "com.gathin.tvhome".equals(pkg)
+                || pkg.startsWith("com.google.android.inputmethod");
+    }
+
+    public static boolean isUserInstalledApp(Context context, String pkg) {
+        if (pkg == null || pkg.isEmpty()) return false;
+        try {
+            ApplicationInfo ai = context.getPackageManager().getApplicationInfo(pkg, 0);
+            return (ai.flags & ApplicationInfo.FLAG_SYSTEM) == 0;
+        } catch (PackageManager.NameNotFoundException e) {
+            return false;
+        }
     }
 }

@@ -11,7 +11,30 @@ android {
         minSdk 28
         targetSdk 34
         versionCode 1
-        versionName '3.0.0-parallel'
+        versionName '3.0.0'
+    }
+
+    flavorDimensions += 'edition'
+    productFlavors {
+        community {
+            dimension 'edition'
+        }
+        if (project.hasProperty('personalOverlayDir')) {
+            personal {
+                dimension 'edition'
+            }
+        }
+    }
+
+    if (project.hasProperty('personalOverlayDir')) {
+        def overlayDir = file(project.property('personalOverlayDir'))
+        sourceSets {
+            personal {
+                manifest.srcFile new File(overlayDir, 'AndroidManifest.xml')
+                java.srcDirs = [new File(overlayDir, 'java')]
+                res.srcDirs = [new File(overlayDir, 'res')]
+            }
+        }
     }
 
     buildTypes {

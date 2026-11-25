@@ -20,16 +20,13 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Module 1 (config): Single-responsibility configuration manager.
- * Supports two operating modes:
- *  - MODE_PARALLEL:   Connects to 127.0.0.1:5555 without setting adb_enabled=0 on exit (Phase 1 NAS validation).
- *  - MODE_STANDALONE: Opens adb_enabled=1 only during maintenance and guarantees adb_enabled=0 on close (Phase 2).
+ * Module 1 (config): Single-responsibility configuration manager for the standalone
+ * On-Device TV Optimizer app (app lists, auto-discovery, ADB policy, and Home Assistant telemetry).
  */
 public final class DaemonConfig {
     private static final String TAG = "TvMaintConfig";
     private static final String PREFS_NAME = "tv_maintenance_config";
 
-    public static final String MODE_PARALLEL = "parallel";
     public static final String MODE_STANDALONE = "standalone";
 
     private static final List<String> DEFAULT_CORE_APPS = Arrays.asList(
@@ -66,7 +63,17 @@ public final class DaemonConfig {
             return;
         }
         long lastModified = externalConfigFile.lastModified();
-        if (lastModified <= prefs.getLong("external_json_mtime", 0L)) {
+        boolean hasCorruptCoreApps = false;
+        Set<String> existingCore = prefs.getStringSet("core_apps", null);
+        if (existingCore != null) {
+            for (String item : existingCore) {
+                if (item != null && item.trim().startsWith("{")) {
+                    hasCorruptCoreApps = true;
+                    break;
+                }
+            }
+        }
+        if (!hasCorruptCoreApps && lastModified <= prefs.getLong("external_json_mtime", 0L)) {
             return;
         }
         try (BufferedReader reader = new BufferedReader(
@@ -80,8 +87,7 @@ public final class DaemonConfig {
             SharedPreferences.Editor ed = prefs.edit();
 
             if (json.has("mode")) {
-                String m = json.optString("mode", MODE_PARALLEL).trim().toLowerCase();
-                ed.putString("mode", MODE_STANDALONE.equals(m) ? MODE_STANDALONE : MODE_PARALLEL);
+                ed.putString("mode", MODE_STANDALONE);
             }
             if (json.has("tv_port")) {
                 ed.putInt("adb_port", json.optInt("tv_port", 5555));
@@ -95,20 +101,56 @@ public final class DaemonConfig {
             if (json.has("force_stop_background_apps")) {
                 ed.putBoolean("force_stop_background_apps", json.optBoolean("force_stop_background_apps", true));
             }
+            if (json.has("auto_discover_user_apps")) {
+                ed.putBoolean("auto_discover_user_apps", json.optBoolean("auto_discover_user_apps", true));
+            }
+            if (json.has("keep_adb_open")) {
+                ed.putBoolean("keep_adb_open", json.optBoolean("keep_adb_open", true));
+            }
             if (json.has("animation_scale")) {
                 ed.putFloat("animation_scale", (float) json.optDouble("animation_scale", 0.5));
             }
             if (json.has("screen_off_debounce_seconds")) {
                 ed.putInt("screen_off_debounce_seconds", json.optInt("screen_off_debounce_seconds", 15));
             }
+            if (json.has("live_trim_interval_minutes")) {
+                ed.putInt("live_trim_interval_minutes", json.optInt("live_trim_interval_minutes", 60));
+            }
             if (json.has("ha_webhook_url")) {
                 ed.putString("ha_webhook_url", json.optString("ha_webhook_url", ""));
+            }
+            if (json.has("ha_url")) {
+                ed.putString("ha_url", json.optString("ha_url", ""));
+            }
+            if (json.has("ha_token")) {
+                ed.putString("ha_token", json.optString("ha_token", ""));
+            }
+            if (json.has("unifi_host")) {
+                ed.putString("unifi_host", json.optString("unifi_host", ""));
+            }
+            if (json.has("unifi_user")) {
+                ed.putString("unifi_user", json.optString("unifi_user", ""));
+            }
+            if (json.has("unifi_pass")) {
+                ed.putString("unifi_pass", json.optString("unifi_pass", ""));
+            }
+            if (json.has("enable_hud_overlay")) {
+                ed.putBoolean("enable_hud_overlay", json.optBoolean("enable_hud_overlay", false));
+            }
+            if (json.has("enable_home_channel")) {
+                ed.putBoolean("enable_home_channel", json.optBoolean("enable_home_channel", false));
+            }
+            if (json.has("knitting_entity_id")) {
+                ed.putString("knitting_entity_id", json.optString("knitting_entity_id", ""));
+            }
+            if (json.has("cleaning_entity_id")) {
+                ed.putString("cleaning_entity_id", json.optString("cleaning_entity_id", ""));
             }
             if (json.has("core_apps")) {
                 JSONArray arr = json.getJSONArray("core_apps");
                 Set<String> set = new LinkedHashSet<>();
                 for (int i = 0; i < arr.length(); i++) {
-                    String pkg = arr.optString(i, "").trim();
+                    String pkg = extractPackageName(arr, i);
                     if (!pkg.isEmpty()) set.add(pkg);
                 }
                 ed.putStringSet("core_apps", set);
@@ -131,16 +173,11 @@ public final class DaemonConfig {
     }
 
     public String getMode() {
-        return prefs.getString("mode", MODE_PARALLEL);
+        return MODE_STANDALONE;
     }
 
     public boolean isStandaloneMode() {
-        return MODE_STANDALONE.equalsIgnoreCase(getMode());
-    }
-
-    public void setMode(String mode) {
-        String normalized = MODE_STANDALONE.equalsIgnoreCase(mode) ? MODE_STANDALONE : MODE_PARALLEL;
-        prefs.edit().putString("mode", normalized).apply();
+        return true;
     }
 
     public int getAdbPort() {
@@ -155,6 +192,10 @@ public final class DaemonConfig {
         return prefs.getInt("min_minutes_between_standby_runs", 30);
     }
 
+    public int getLiveTrimIntervalMinutes() {
+        return prefs.getInt("live_trim_interval_minutes", 60);
+    }
+
     public String getDefaultLauncher() {
         return prefs.getString("default_launcher", "com.spocky.projengmenu/.ui.home.MainActivity");
     }
@@ -167,6 +208,22 @@ public final class DaemonConfig {
         return prefs.getBoolean("force_stop_background_apps", true);
     }
 
+    public boolean isAutoDiscoverUserApps() {
+        return prefs.getBoolean("auto_discover_user_apps", true);
+    }
+
+    public boolean isKeepAdbOpen() {
+        return prefs.getBoolean("keep_adb_open", false);
+    }
+
+    public void setKeepAdbOpen(boolean keepOpen) {
+        prefs.edit().putBoolean("keep_adb_open", keepOpen).apply();
+    }
+
+    public boolean shouldCloseAdbAfterRun() {
+        return !isKeepAdbOpen();
+    }
+
     public float getAnimationScale() {
         return prefs.getFloat("animation_scale", 0.5f);
     }
@@ -175,12 +232,84 @@ public final class DaemonConfig {
         return prefs.getString("ha_webhook_url", "");
     }
 
+    public String getHaUrl() {
+        return prefs.getString("ha_url", "");
+    }
+
+    public String getHaToken() {
+        return prefs.getString("ha_token", "");
+    }
+
+    public String getUnifiHost() {
+        return prefs.getString("unifi_host", "");
+    }
+
+    public String getUnifiUser() {
+        return prefs.getString("unifi_user", "");
+    }
+
+    public String getUnifiPass() {
+        return prefs.getString("unifi_pass", "");
+    }
+
+    public boolean isHudOverlayEnabled() {
+        return prefs.getBoolean("enable_hud_overlay", false);
+    }
+
+    public void setHudOverlayEnabled(boolean enabled) {
+        prefs.edit().putBoolean("enable_hud_overlay", enabled).apply();
+    }
+
+    public boolean isHomeChannelEnabled() {
+        return prefs.getBoolean("enable_home_channel", false);
+    }
+
+    public void setHomeChannelEnabled(boolean enabled) {
+        prefs.edit().putBoolean("enable_home_channel", enabled).apply();
+    }
+
+    public String getKnittingEntityId() {
+        return prefs.getString("knitting_entity_id", "");
+    }
+
+    public String getCleaningEntityId() {
+        return prefs.getString("cleaning_entity_id", "");
+    }
+
     public List<String> getCoreApps() {
         Set<String> stored = prefs.getStringSet("core_apps", null);
         if (stored == null || stored.isEmpty()) {
             return Collections.unmodifiableList(DEFAULT_CORE_APPS);
         }
-        return new ArrayList<>(stored);
+        List<String> sanitized = new ArrayList<>();
+        for (String item : stored) {
+            String pkg = sanitizePackageEntry(item);
+            if (!pkg.isEmpty() && !sanitized.contains(pkg)) {
+                sanitized.add(pkg);
+            }
+        }
+        return sanitized.isEmpty() ? Collections.unmodifiableList(DEFAULT_CORE_APPS) : sanitized;
+    }
+
+    private static String extractPackageName(JSONArray arr, int index) {
+        JSONObject obj = arr.optJSONObject(index);
+        if (obj != null) {
+            return obj.optString("pkg", "").trim();
+        }
+        return sanitizePackageEntry(arr.optString(index, ""));
+    }
+
+    private static String sanitizePackageEntry(String raw) {
+        if (raw == null) return "";
+        String trimmed = raw.trim();
+        if (trimmed.startsWith("{")) {
+            try {
+                return new JSONObject(trimmed).optString("pkg", "").trim();
+            } catch (Exception ignored) {
+                return "";
+            }
+        }
+        return trimmed;
     }
 
     public List<String> getDisabledPackages() {

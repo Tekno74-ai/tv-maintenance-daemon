@@ -6,13 +6,17 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Keeps CPU awake for 5-15s after ACTION_SCREEN_OFF while screen remains 100% black -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
-    <!-- Keeps WatcherService alive across Android 12+ background limits (100% invisible on Android TV) -->
+    <!-- Keeps WatcherService alive across Android 12+ background limits -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <!-- Auto-starts WatcherService after cold boot / power outage -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <!-- Granted once via ADB (pm grant): enables ephemeral loopback ADB & 0.5x animation scales -->
     <uses-permission
         android:name="android.permission.WRITE_SECURE_SETTINGS"
+        tools:ignore="ProtectedPermissions" />
+    <!-- Foreground app detection for gentle UC5 live-trim during prolonged viewing -->
+    <uses-permission
+        android:name="android.permission.PACKAGE_USAGE_STATS"
         tools:ignore="ProtectedPermissions" />
 
     <uses-feature
