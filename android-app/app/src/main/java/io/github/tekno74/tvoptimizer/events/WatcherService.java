@@ -1,4 +1,4 @@
-package io.github.tekno74.tvmaintenance.events;
+package io.github.tekno74.tvoptimizer.events;
 
 import android.app.Notification;
 import android.app.NotificationChannel;
@@ -22,12 +22,12 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import io.github.tekno74.tvmaintenance.R;
-import io.github.tekno74.tvmaintenance.config.DaemonConfig;
-import io.github.tekno74.tvmaintenance.engine.MaintenanceEngine;
-import io.github.tekno74.tvmaintenance.engine.SafetyInvariants;
-import io.github.tekno74.tvmaintenance.telemetry.HomeAssistantClient;
-import io.github.tekno74.tvmaintenance.telemetry.MetricsCollector;
+import io.github.tekno74.tvoptimizer.R;
+import io.github.tekno74.tvoptimizer.config.DaemonConfig;
+import io.github.tekno74.tvoptimizer.engine.MaintenanceEngine;
+import io.github.tekno74.tvoptimizer.engine.SafetyInvariants;
+import io.github.tekno74.tvoptimizer.telemetry.HomeAssistantClient;
+import io.github.tekno74.tvoptimizer.telemetry.MetricsCollector;
 
 /**
  * Module 4b (events): Event-driven background service that listens to OS broadcasts:
@@ -39,8 +39,8 @@ import io.github.tekno74.tvmaintenance.telemetry.MetricsCollector;
 public final class WatcherService extends Service {
     private static final String TAG = "TvMaintWatcher";
 
-    public static final String ACTION_BOOT_VERIFY = "io.github.tekno74.tvmaintenance.ACTION_BOOT_VERIFY";
-    public static final String ACTION_MANUAL_RUN = "io.github.tekno74.tvmaintenance.ACTION_MANUAL_RUN";
+    public static final String ACTION_BOOT_VERIFY = "io.github.tekno74.tvoptimizer.ACTION_BOOT_VERIFY";
+    public static final String ACTION_MANUAL_RUN = "io.github.tekno74.tvoptimizer.ACTION_MANUAL_RUN";
 
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final ExecutorService worker = Executors.newSingleThreadExecutor();

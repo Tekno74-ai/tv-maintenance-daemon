@@ -1,1 +1,1 @@
--keep class io.github.tekno74.tvmaintenance.** { *; }
+-keep class io.github.tekno74.tvoptimizer.** { *; }

@@ -67,7 +67,7 @@
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
-                <action android:name="io.github.tekno74.tvmaintenance.ACTION_RUN_NOW" />
+                <action android:name="io.github.tekno74.tvoptimizer.ACTION_RUN_NOW" />
             </intent-filter>
         </receiver>
 

@@ -1,4 +1,4 @@
-package io.github.tekno74.tvmaintenance.events;
+package io.github.tekno74.tvoptimizer.events;
 
 import android.content.Context;
 import android.content.SharedPreferences;

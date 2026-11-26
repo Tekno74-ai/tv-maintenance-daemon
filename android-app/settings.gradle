@@ -12,5 +12,5 @@ dependencyResolutionManagement {
         mavenCentral()
     }
 }
-rootProject.name = "tv-maintenance-daemon-app"
+rootProject.name = "tv-optimizer-app"
 include ':app'

@@ -1,4 +1,4 @@
-package io.github.tekno74.tvmaintenance.engine;
+package io.github.tekno74.tvoptimizer.engine;
 
 import android.content.Context;
 import android.util.Log;
@@ -10,12 +10,12 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Pattern;
 
-import io.github.tekno74.tvmaintenance.adb.AdbSessionGuard;
-import io.github.tekno74.tvmaintenance.adb.LocalAdbClient;
-import io.github.tekno74.tvmaintenance.config.DaemonConfig;
-import io.github.tekno74.tvmaintenance.events.DirtyPackageQueue;
-import io.github.tekno74.tvmaintenance.telemetry.HomeAssistantClient;
-import io.github.tekno74.tvmaintenance.telemetry.MetricsCollector;
+import io.github.tekno74.tvoptimizer.adb.AdbSessionGuard;
+import io.github.tekno74.tvoptimizer.adb.LocalAdbClient;
+import io.github.tekno74.tvoptimizer.config.DaemonConfig;
+import io.github.tekno74.tvoptimizer.events.DirtyPackageQueue;
+import io.github.tekno74.tvoptimizer.telemetry.HomeAssistantClient;
+import io.github.tekno74.tvoptimizer.telemetry.MetricsCollector;
 
 /**
  * Module 5b (engine): Orchestrates dark-mode standby maintenance, gentle live trimming (UC5),

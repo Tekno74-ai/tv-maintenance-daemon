@@ -1,4 +1,4 @@
-package io.github.tekno74.tvmaintenance.ui;
+package io.github.tekno74.tvoptimizer.ui;
 
 import android.app.Activity;
 import android.content.Intent;
@@ -15,12 +15,12 @@ import android.widget.TextView;
 
 import java.util.Set;
 
-import io.github.tekno74.tvmaintenance.adb.AdbSessionGuard;
-import io.github.tekno74.tvmaintenance.config.DaemonConfig;
-import io.github.tekno74.tvmaintenance.events.DirtyPackageQueue;
-import io.github.tekno74.tvmaintenance.events.WatcherService;
-import io.github.tekno74.tvmaintenance.telemetry.HomeAssistantClient;
-import io.github.tekno74.tvmaintenance.telemetry.MetricsCollector;
+import io.github.tekno74.tvoptimizer.adb.AdbSessionGuard;
+import io.github.tekno74.tvoptimizer.config.DaemonConfig;
+import io.github.tekno74.tvoptimizer.events.DirtyPackageQueue;
+import io.github.tekno74.tvoptimizer.events.WatcherService;
+import io.github.tekno74.tvoptimizer.telemetry.HomeAssistantClient;
+import io.github.tekno74.tvoptimizer.telemetry.MetricsCollector;
 
 /**
  * Module 6 (ui): Clean, generic Android TV status dashboard for TV Optimizer v3.0 (Community Edition).

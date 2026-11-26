@@ -1,4 +1,4 @@
-package io.github.tekno74.tvmaintenance.telemetry;
+package io.github.tekno74.tvoptimizer.telemetry;
 
 import android.content.Context;
 import android.content.SharedPreferences;
@@ -17,7 +17,7 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
 
-import io.github.tekno74.tvmaintenance.config.DaemonConfig;
+import io.github.tekno74.tvoptimizer.config.DaemonConfig;
 
 /**
  * Module 3b (telemetry): Persists telemetry snapshots locally and pushes live events

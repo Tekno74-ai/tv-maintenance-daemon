@@ -1,4 +1,4 @@
-package io.github.tekno74.tvmaintenance.telemetry;
+package io.github.tekno74.tvoptimizer.telemetry;
 
 import android.content.Context;
 import android.os.Environment;

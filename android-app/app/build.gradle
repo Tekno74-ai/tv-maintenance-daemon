@@ -3,11 +3,11 @@ plugins {
 }
 
 android {
-    namespace 'io.github.tekno74.tvmaintenance'
+    namespace 'io.github.tekno74.tvoptimizer'
     compileSdk 34
 
     defaultConfig {
-        applicationId 'io.github.tekno74.tvmaintenance'
+        applicationId 'io.github.tekno74.tvoptimizer'
         minSdk 28
         targetSdk 34
         versionCode 1

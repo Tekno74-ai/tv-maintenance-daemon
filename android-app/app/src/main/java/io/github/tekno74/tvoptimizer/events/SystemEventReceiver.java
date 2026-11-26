@@ -1,4 +1,4 @@
-package io.github.tekno74.tvmaintenance.events;
+package io.github.tekno74.tvoptimizer.events;
 
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -10,7 +10,7 @@ import android.util.Log;
  */
 public final class SystemEventReceiver extends BroadcastReceiver {
     private static final String TAG = "TvMaintBootReceiver";
-    public static final String ACTION_RUN_NOW = "io.github.tekno74.tvmaintenance.ACTION_RUN_NOW";
+    public static final String ACTION_RUN_NOW = "io.github.tekno74.tvoptimizer.ACTION_RUN_NOW";
 
     @Override
     public void onReceive(Context context, Intent intent) {

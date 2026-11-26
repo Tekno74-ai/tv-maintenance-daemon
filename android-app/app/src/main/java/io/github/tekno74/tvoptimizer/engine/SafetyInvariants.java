@@ -1,4 +1,4 @@
-package io.github.tekno74.tvmaintenance.engine;
+package io.github.tekno74.tvoptimizer.engine;
 
 import android.content.ContentResolver;
 import android.content.Context;
@@ -10,8 +10,8 @@ import android.util.Log;
 import java.util.ArrayList;
 import java.util.List;
 
-import io.github.tekno74.tvmaintenance.adb.AdbSessionGuard;
-import io.github.tekno74.tvmaintenance.config.DaemonConfig;
+import io.github.tekno74.tvoptimizer.adb.AdbSessionGuard;
+import io.github.tekno74.tvoptimizer.config.DaemonConfig;
 
 /**
  * Module 5a (engine): Hardcoded runtime invariants protecting the TV's dark standby state,
@@ -19,7 +19,7 @@ import io.github.tekno74.tvmaintenance.config.DaemonConfig;
  */
 public final class SafetyInvariants {
     private static final String TAG = "TvMaintSafety";
-    private static final String SELF_PACKAGE = "io.github.tekno74.tvmaintenance";
+    private static final String SELF_PACKAGE = "io.github.tekno74.tvoptimizer";
 
     /**
      * Enforces settings directly via ContentResolver using WRITE_SECURE_SETTINGS (zero ADB needed).

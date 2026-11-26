@@ -1,4 +1,4 @@
-package io.github.tekno74.tvmaintenance.config;
+package io.github.tekno74.tvoptimizer.config;
 
 import android.content.Context;
 import android.content.SharedPreferences;
@@ -55,7 +55,7 @@ public final class DaemonConfig {
     }
 
     /**
-     * Imports settings from /sdcard/Android/data/io.github.tekno74.tvmaintenance/files/tv_config.json
+     * Imports settings from /sdcard/Android/data/io.github.tekno74.tvoptimizer/files/tv_config.json
      * if pushed by the deployment script.
      */
     public synchronized void syncFromExternalJsonIfPresent() {

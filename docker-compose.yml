@@ -1,7 +1,7 @@
 services:
-  tv-maintenance-daemon:
+  tv-optimizer:
     build: .
-    container_name: tv-maintenance-daemon
+    container_name: tv-optimizer
     restart: unless-stopped
     # host networking is required for Wake-on-LAN UDP broadcast packets and low-latency ADB
     network_mode: host

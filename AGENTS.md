@@ -32,7 +32,7 @@ Run from the project root:
 python -m py_compile core/daemon.py core/optimizer.py core/power_recovery.py
 
 # 2. Test Docker build:
-docker build -t tv-maintenance-daemon:test .
+docker build -t tv-optimizer:test .
 
 # 3. Test optimizer status check (dry run):
 python core/optimizer.py --status

@@ -93,8 +93,8 @@ Publishes atomic, clean JSON status metrics including **True Available Memory** 
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/Tekno74-ai/tv-maintenance-daemon.git
-   cd tv-maintenance-daemon
+   git clone https://github.com/Tekno74-ai/tv-optimizer.git
+   cd tv-optimizer
    ```
 2. Copy and customize configuration:
    ```bash
@@ -125,7 +125,7 @@ Publishes atomic, clean JSON status metrics including **True Available Memory** 
    *(Accept the "Always allow from this computer" prompt on the TV screen).*
 4. Set up crontab for headless nightly maintenance (e.g. at 04:30 AM):
    ```cron
-   30 4 * * * /usr/bin/python3 /path/to/tv-maintenance-daemon/core/optimizer.py --wake >> /path/to/tv_cron.log 2>&1
+   30 4 * * * /usr/bin/python3 /path/to/tv-optimizer/core/optimizer.py --wake >> /path/to/tv_cron.log 2>&1
    ```
 5. Run the 24/7 playback and live-trimming daemon via systemd or supervisor:
    ```bash

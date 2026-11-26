@@ -30,11 +30,11 @@
 
 ## 3. Modular Software Architecture (Single Responsibility)
 
-To keep the codebase clean, testable, and easy to maintain, `android-app/` is divided into **6 decoupled modules** under `io.github.tekno74.tvmaintenance`:
+To keep the codebase clean, testable, and easy to maintain, `android-app/` is divided into **6 decoupled modules** under `io.github.tekno74.tvoptimizer`:
 
 ```text
 android-app/
-└── app/src/main/java/io/github/tekno74/tvmaintenance/
+└── app/src/main/java/io/github/tekno74/tvoptimizer/
     ├── config/
     │   └── DaemonConfig.java          # Reads/validates config (mode: "parallel" | "standalone", core_apps, HA webhook, cooldowns)
     ├── adb/
