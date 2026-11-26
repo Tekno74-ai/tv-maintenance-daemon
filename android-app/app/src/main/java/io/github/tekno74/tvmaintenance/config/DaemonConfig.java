@@ -125,26 +125,14 @@ public final class DaemonConfig {
             if (json.has("ha_token")) {
                 ed.putString("ha_token", json.optString("ha_token", ""));
             }
-            if (json.has("unifi_host")) {
-                ed.putString("unifi_host", json.optString("unifi_host", ""));
-            }
-            if (json.has("unifi_user")) {
-                ed.putString("unifi_user", json.optString("unifi_user", ""));
-            }
-            if (json.has("unifi_pass")) {
-                ed.putString("unifi_pass", json.optString("unifi_pass", ""));
-            }
-            if (json.has("enable_hud_overlay")) {
-                ed.putBoolean("enable_hud_overlay", json.optBoolean("enable_hud_overlay", false));
-            }
-            if (json.has("enable_home_channel")) {
-                ed.putBoolean("enable_home_channel", json.optBoolean("enable_home_channel", false));
-            }
-            if (json.has("knitting_entity_id")) {
-                ed.putString("knitting_entity_id", json.optString("knitting_entity_id", ""));
-            }
-            if (json.has("cleaning_entity_id")) {
-                ed.putString("cleaning_entity_id", json.optString("cleaning_entity_id", ""));
+            if (json.has("protected_packages")) {
+                JSONArray arr = json.getJSONArray("protected_packages");
+                Set<String> set = new LinkedHashSet<>();
+                for (int i = 0; i < arr.length(); i++) {
+                    String pkg = arr.optString(i, "").trim();
+                    if (!pkg.isEmpty()) set.add(pkg);
+                }
+                ed.putStringSet("protected_packages", set);
             }
             if (json.has("core_apps")) {
                 JSONArray arr = json.getJSONArray("core_apps");
@@ -240,40 +228,12 @@ public final class DaemonConfig {
         return prefs.getString("ha_token", "");
     }
 
-    public String getUnifiHost() {
-        return prefs.getString("unifi_host", "");
-    }
-
-    public String getUnifiUser() {
-        return prefs.getString("unifi_user", "");
-    }
-
-    public String getUnifiPass() {
-        return prefs.getString("unifi_pass", "");
-    }
-
-    public boolean isHudOverlayEnabled() {
-        return prefs.getBoolean("enable_hud_overlay", false);
-    }
-
-    public void setHudOverlayEnabled(boolean enabled) {
-        prefs.edit().putBoolean("enable_hud_overlay", enabled).apply();
-    }
-
-    public boolean isHomeChannelEnabled() {
-        return prefs.getBoolean("enable_home_channel", false);
-    }
-
-    public void setHomeChannelEnabled(boolean enabled) {
-        prefs.edit().putBoolean("enable_home_channel", enabled).apply();
-    }
-
-    public String getKnittingEntityId() {
-        return prefs.getString("knitting_entity_id", "");
-    }
-
-    public String getCleaningEntityId() {
-        return prefs.getString("cleaning_entity_id", "");
+    public Set<String> getProtectedPackages() {
+        Set<String> stored = prefs.getStringSet("protected_packages", null);
+        if (stored == null || stored.isEmpty()) {
+            return Collections.emptySet();
+        }
+        return new LinkedHashSet<>(stored);
     }
 
     public List<String> getCoreApps() {

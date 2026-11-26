@@ -91,7 +91,8 @@ public final class SafetyInvariants {
     public static boolean isProtectedPackage(String pkg, DaemonConfig config) {
         if (pkg == null || pkg.isEmpty()) return true;
         if (SELF_PACKAGE.equals(pkg)) return true;
-        String launcherPkg = extractLauncherPackage(config.getDefaultLauncher());
+        if (config != null && config.getProtectedPackages().contains(pkg)) return true;
+        String launcherPkg = extractLauncherPackage(config != null ? config.getDefaultLauncher() : "");
         if (!launcherPkg.isEmpty() && launcherPkg.equals(pkg)) return true;
         return "com.spocky.projengmenu".equals(pkg)
                 || "com.gathin.tvhome".equals(pkg)

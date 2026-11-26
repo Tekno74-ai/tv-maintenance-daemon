@@ -1,7 +1,4 @@
 param(
-    [string]$TvHost = "",
-    [string]$Flavor = "community",
-    [string]$PersonalOverlayDir = "",
     [switch]$SkipBuild
 )
 $ErrorActionPreference = 'Stop'
@@ -22,20 +19,13 @@ if (-not (Test-Path "local.properties")) {
     "sdk.dir=$escapedSdk" | Out-File -Encoding ascii "local.properties"
 }
 
-$flavorCap = $Flavor.Substring(0,1).ToUpper() + $Flavor.Substring(1)
-$gradleTask = "assemble${flavorCap}Release"
-$gradleArgs = @($gradleTask, "--console=plain")
-if ($PersonalOverlayDir -and (Test-Path $PersonalOverlayDir)) {
-    $gradleArgs += "-PpersonalOverlayDir=$PersonalOverlayDir"
-}
-
 if (-not $SkipBuild) {
-    Write-Host "=== Building TV Optimizer Android App ($gradleTask) ==="
-    & .\gradlew.bat @gradleArgs
+    Write-Host "=== Building TV Optimizer Android App (assembleRelease) ==="
+    & .\gradlew.bat assembleRelease --console=plain
     if ($LASTEXITCODE -ne 0) { throw "Gradle build failed" }
 }
 
-$apkPath = "app\build\outputs\apk\$Flavor\release\app-$Flavor-release.apk"
+$apkPath = "app\build\outputs\apk\release\app-release.apk"
 if (-not (Test-Path $apkPath)) {
     throw "APK not found at $apkPath"
 }

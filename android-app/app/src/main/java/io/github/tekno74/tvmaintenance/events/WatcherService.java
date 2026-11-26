@@ -28,8 +28,6 @@ import io.github.tekno74.tvmaintenance.engine.MaintenanceEngine;
 import io.github.tekno74.tvmaintenance.engine.SafetyInvariants;
 import io.github.tekno74.tvmaintenance.telemetry.HomeAssistantClient;
 import io.github.tekno74.tvmaintenance.telemetry.MetricsCollector;
-import io.github.tekno74.tvmaintenance.widgets.ExtensionHook;
-import io.github.tekno74.tvmaintenance.widgets.ExtensionHookFactory;
 
 /**
  * Module 4b (events): Event-driven background service that listens to OS broadcasts:
@@ -50,7 +48,6 @@ public final class WatcherService extends Service {
 
     private DaemonConfig config;
     private DirtyPackageQueue dirtyQueue;
-    private ExtensionHook extensionHook;
     private PowerManager.WakeLock standbyWakeLock;
     private WifiManager.WifiLock standbyWifiLock;
     private Runnable pendingScreenOffTask;
@@ -102,9 +99,7 @@ public final class WatcherService extends Service {
         ensureForeground();
         config = new DaemonConfig(this);
         dirtyQueue = new DirtyPackageQueue(this);
-        extensionHook = ExtensionHookFactory.create(this, config);
         registerDynamicReceivers();
-        extensionHook.onServiceStart(this, config);
         startLiveTrimMonitor();
         Log.i(TAG, "WatcherService started (standalone On-Device TV Optimizer)");
     }
@@ -195,7 +190,6 @@ public final class WatcherService extends Service {
             pendingScreenOffTask = null;
         }
         releaseLocks();
-        extensionHook.onScreenOn(this, config);
         startLiveTrimMonitor();
         worker.execute(() -> {
             MetricsCollector.SystemSnapshot snap = MetricsCollector.collect(getApplicationContext());
@@ -214,7 +208,6 @@ public final class WatcherService extends Service {
 
     private void handleScreenOff() {
         stopLiveTrimMonitor();
-        extensionHook.onScreenOff(this, config);
         activePlaybackStartMs = 0L;
         activePlaybackPkg = "";
         config.syncFromExternalJsonIfPresent();
@@ -355,9 +348,6 @@ public final class WatcherService extends Service {
     @Override
     public void onDestroy() {
         stopLiveTrimMonitor();
-        if (extensionHook != null) {
-            extensionHook.onServiceDestroy();
-        }
         if (receiversRegistered) {
             try {
                 unregisterReceiver(screenReceiver);
